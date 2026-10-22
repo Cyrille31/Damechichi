@@ -95,13 +95,13 @@
     ctx.restore();
   }
 
-  function hexPath(ctx, cx, cy, R, round) {
+  function hexPath(ctx, cx, cy, R, round, rot = 0, append = false) {
     const pts = [];
     for (let k = 0; k < 6; k++) {
-      const a = Math.PI / 2 + k * Math.PI / 3;
+      const a = Math.PI / 2 + k * Math.PI / 3 + rot;
       pts.push([cx + R * Math.cos(a), cy + R * Math.sin(a)]);
     }
-    ctx.beginPath();
+    if (!append) ctx.beginPath();
     const mid = (p, q) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
     const start = mid(pts[5], pts[0]);
     ctx.moveTo(start[0], start[1]);
@@ -117,21 +117,37 @@
     constructor(canvas) {
       this.canvas = canvas;
       this.ctx = canvas.getContext('2d');
-      this.rotation = 0;
+      this.angle = 0;   // rotation du plateau (radians, sens de canvas.rotate)
+      this.tilt = 0;    // inclinaison du plateau (radians), appliquée en CSS 3D
       this.armColors = [null, null, null, null, null, null];
       this.pos = BOARD.cells.map(() => ({ x: 0, y: 0 }));
       this.resize();
     }
 
-    /** Tourne le plateau pour amener la branche `arm` en bas de l'écran. */
-    setView(rotationArm, armColors) {
-      this.rotation = rotationArm;
+    /** Angle qui amène la branche `arm` en bas de l'écran. */
+    static armAngle(arm) {
+      return -arm * Math.PI / 3;
+    }
+
+    setView(arm, armColors) {
       this.armColors = armColors;
-      this.layout();
+      this.buildBoard();
+      this.setAngle(Renderer.armAngle(arm));
+    }
+
+    setAngle(angle) {
+      this.angle = angle;
+      const cs = Math.cos(angle), sn = Math.sin(angle);
+      BOARD.cells.forEach((c, i) => {
+        this.pos[i] = {
+          x: this.cx + (c.x * cs - c.y * sn) * this.u,
+          y: this.cy + (c.x * sn + c.y * cs) * this.u
+        };
+      });
     }
 
     resize() {
-      const rect = this.canvas.getBoundingClientRect();
+      const rect = this.canvas.parentElement.getBoundingClientRect();
       this.dpr = Math.min(window.devicePixelRatio || 1, 3);
       this.w = Math.max(1, rect.width);
       this.h = Math.max(1, rect.height);
@@ -147,96 +163,72 @@
       this.spacing = SQRT3 * this.u;
       this.holeR = 0.3 * this.spacing;
       this.pieceR = 0.43 * this.spacing;
-      const th = -this.rotation * Math.PI / 3, cs = Math.cos(th), sn = Math.sin(th);
-      this.rot = (x, y) => ({ x: x * cs - y * sn, y: x * sn + y * cs });
-      BOARD.cells.forEach((c, i) => {
-        const p = this.rot(c.x, c.y);
-        this.pos[i] = { x: this.cx + p.x * this.u, y: this.cy + p.y * this.u };
-      });
       this.buildBoard();
+      this.buildHole();
       this.buildSprites();
+      this.setAngle(this.angle);
     }
 
+    /** Calque carré dessiné dans le repère du plateau (centre au milieu), qui tourne avec lui. */
     makeLayer() {
+      const L = (FRAME_R + 1.5) * 2 * this.u;
       const c = document.createElement('canvas');
-      c.width = this.canvas.width;
-      c.height = this.canvas.height;
+      c.width = c.height = Math.ceil(L * this.dpr);
       const ctx = c.getContext('2d');
       ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-      return [c, ctx];
+      ctx.translate(L / 2, L / 2);
+      return [c, ctx, L];
     }
 
+    /** Le bois, l'étoile et les teintes : tout ce qui tourne avec le plateau. */
     buildBoard() {
+      const u = this.u, size = FRAME_R * 2 * u;
+
+      const [shadow, sctx, L] = this.makeLayer();
+      sctx.filter = `blur(${u * 0.8}px)`;
+      hexPath(sctx, 0, 0, FRAME_R * u, u * 1.4);
+      sctx.fillStyle = 'rgba(0,0,0,0.6)';
+      sctx.fill();
+      this.shadowLayer = shadow;
+      this.layerSize = L;
+
       const [layer, ctx] = this.makeLayer();
-      const { cx, cy, u } = this;
-      const size = FRAME_R * 2 * u;
-
-      // Ombre portée sur la table.
-      ctx.save();
-      ctx.shadowColor = 'rgba(0,0,0,0.6)';
-      ctx.shadowBlur = u * 1.6;
-      ctx.shadowOffsetY = u * 0.6;
-      hexPath(ctx, cx, cy, FRAME_R * u, u * 1.4);
-      ctx.fillStyle = '#4a2a14';
-      ctx.fill();
-      ctx.restore();
-
       // Cadre en noyer.
       ctx.save();
-      hexPath(ctx, cx, cy, FRAME_R * u, u * 1.4);
+      hexPath(ctx, 0, 0, FRAME_R * u, u * 1.4);
       ctx.clip();
-      drawGrain(ctx, cx, cy, size, {
+      drawGrain(ctx, 0, 0, size, {
         seed: 7, angle: Math.PI / 2, spacing: u * 0.32, lineScale: Math.max(0.6, u / 22),
         base: ['#8d5a32', '#6d4122', '#875430'], line: 'rgba(35,15,5,', knots: 2
       });
-      const bevel = ctx.createLinearGradient(cx - size / 2, cy - size / 2, cx + size / 2, cy + size / 2);
-      bevel.addColorStop(0, 'rgba(255,230,190,0.28)');
-      bevel.addColorStop(0.5, 'rgba(255,255,255,0)');
-      bevel.addColorStop(1, 'rgba(0,0,0,0.35)');
-      ctx.fillStyle = bevel;
-      ctx.fillRect(cx - size, cy - size, size * 2, size * 2);
       ctx.restore();
-      hexPath(ctx, cx, cy, FRAME_R * u - 0.5, u * 1.4);
-      ctx.strokeStyle = 'rgba(255,220,170,0.25)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
 
       // Rainure entre cadre et plateau.
-      hexPath(ctx, cx, cy, SURFACE_R * u + u * 0.18, u * 1.1);
+      hexPath(ctx, 0, 0, SURFACE_R * u + u * 0.18, u * 1.1);
       ctx.fillStyle = 'rgba(25,10,3,0.75)';
       ctx.fill();
 
       // Plateau en hêtre clair.
       ctx.save();
-      hexPath(ctx, cx, cy, SURFACE_R * u, u * 1.0);
+      hexPath(ctx, 0, 0, SURFACE_R * u, u * 1.0);
       ctx.clip();
-      drawGrain(ctx, cx, cy, size, {
+      drawGrain(ctx, 0, 0, size, {
         seed: 31, angle: 0.08, spacing: u * 0.26, lineScale: Math.max(0.6, u / 22),
         base: ['#e6b882', '#d39d63', '#e0ae74', '#cf955a'], line: 'rgba(120,65,25,', knots: 3
       });
-      const light = ctx.createRadialGradient(cx - size * 0.2, cy - size * 0.25, size * 0.05, cx, cy, size * 0.65);
-      light.addColorStop(0, 'rgba(255,245,220,0.22)');
-      light.addColorStop(1, 'rgba(60,25,5,0.28)');
-      ctx.fillStyle = light;
-      ctx.fillRect(cx - size, cy - size, size * 2, size * 2);
       ctx.restore();
-      hexPath(ctx, cx, cy, SURFACE_R * u, u * 1.0);
-      ctx.strokeStyle = 'rgba(255,235,200,0.35)';
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
 
       // Étoile gravée et branches teintées aux couleurs des joueurs.
       const starPts = [];
       for (let k = 0; k < 12; k++) {
         const a = Math.PI / 2 + k * Math.PI / 6;
         const r = (k % 2 === 0 ? STAR_R : STAR_R / SQRT3) * u;
-        starPts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+        starPts.push([r * Math.cos(a), r * Math.sin(a)]);
       }
       for (let arm = 0; arm < 6; arm++) {
         const col = this.armColors[arm];
         if (col === null || col === undefined) continue;
-        const tipCell = BOARD.cells[BOARD.arms[arm].tip];
-        const t = this.rot(tipCell.x, tipCell.y);
+        const t = BOARD.cells[BOARD.arms[arm].tip];
         const k = Math.round(((Math.atan2(t.y, t.x) - Math.PI / 2) / (Math.PI / 6) + 24)) % 12;
         ctx.beginPath();
         ctx.moveTo(...starPts[(k + 11) % 12]);
@@ -248,54 +240,97 @@
         ctx.fill();
         ctx.globalAlpha = 1;
       }
-      const star = () => {
-        ctx.beginPath();
-        starPts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
-        ctx.closePath();
-      };
-      ctx.save();
-      ctx.translate(0.8, 0.8);
-      star();
-      ctx.strokeStyle = 'rgba(255,240,210,0.45)';
-      ctx.lineWidth = Math.max(1, u * 0.08);
-      ctx.stroke();
-      ctx.restore();
-      star();
+      ctx.beginPath();
+      starPts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
+      ctx.closePath();
       ctx.strokeStyle = 'rgba(70,35,10,0.55)';
       ctx.lineWidth = Math.max(1, u * 0.08);
       ctx.stroke();
       // Rosace centrale gravée.
       for (const rr of [2.2, 2.45]) {
         ctx.beginPath();
-        ctx.arc(cx, cy, rr * u * SQRT3, 0, Math.PI * 2);
+        ctx.arc(0, 0, rr * u * SQRT3, 0, Math.PI * 2);
         ctx.strokeStyle = 'rgba(80,40,12,0.18)';
         ctx.lineWidth = 1;
         ctx.stroke();
       }
-
-      // Trous.
-      const hr = this.holeR;
-      for (let i = 0; i < N; i++) {
-        const { x, y } = this.pos[i];
-        ctx.beginPath();
-        ctx.arc(x + hr * 0.12, y + hr * 0.12, hr * 1.12, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,235,200,0.35)';
-        ctx.fill();
-        const g = ctx.createRadialGradient(x - hr * 0.3, y - hr * 0.3, hr * 0.1, x, y, hr);
-        g.addColorStop(0, '#120802');
-        g.addColorStop(0.65, '#2a1507');
-        g.addColorStop(1, '#5a3315');
-        ctx.beginPath();
-        ctx.arc(x, y, hr, 0, Math.PI * 2);
-        ctx.fillStyle = g;
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(x, y, hr, Math.PI * 0.95, Math.PI * 1.75);
-        ctx.strokeStyle = 'rgba(30,12,2,0.6)';
-        ctx.lineWidth = Math.max(1, hr * 0.15);
-        ctx.stroke();
-      }
       this.boardLayer = layer;
+    }
+
+    /** Un trou, éclairé d'en haut à gauche quelle que soit la rotation du plateau. */
+    buildHole() {
+      const hr = this.holeR, m = hr * 1.4;
+      const c = document.createElement('canvas');
+      c.width = c.height = Math.ceil(m * 2 * this.dpr);
+      const ctx = c.getContext('2d');
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      ctx.beginPath();
+      ctx.arc(m + hr * 0.12, m + hr * 0.12, hr * 1.12, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,235,200,0.35)';
+      ctx.fill();
+      const g = ctx.createRadialGradient(m - hr * 0.3, m - hr * 0.3, hr * 0.1, m, m, hr);
+      g.addColorStop(0, '#120802');
+      g.addColorStop(0.65, '#2a1507');
+      g.addColorStop(1, '#5a3315');
+      ctx.beginPath();
+      ctx.arc(m, m, hr, 0, Math.PI * 2);
+      ctx.fillStyle = g;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(m, m, hr, Math.PI * 0.95, Math.PI * 1.75);
+      ctx.strokeStyle = 'rgba(30,12,2,0.6)';
+      ctx.lineWidth = Math.max(1, hr * 0.15);
+      ctx.stroke();
+      this.holeSprite = c;
+      this.holeSize = m * 2;
+    }
+
+    /** Plateau à l'angle courant ; la lumière, elle, reste fixe (venant d'en haut à gauche). */
+    drawBoard(ctx) {
+      const { cx, cy, u, angle, layerSize: L } = this;
+      const size = FRAME_R * 2 * u;
+      ctx.save();
+      ctx.translate(cx, cy + u * 0.6);
+      ctx.rotate(angle);
+      ctx.drawImage(this.shadowLayer, -L / 2, -L / 2, L, L);
+      ctx.restore();
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(angle);
+      ctx.drawImage(this.boardLayer, -L / 2, -L / 2, L, L);
+      ctx.restore();
+
+      ctx.save();
+      hexPath(ctx, cx, cy, FRAME_R * u, u * 1.4, angle);
+      ctx.clip();
+      const bevel = ctx.createLinearGradient(cx - size / 2, cy - size / 2, cx + size / 2, cy + size / 2);
+      bevel.addColorStop(0, 'rgba(255,230,190,0.28)');
+      bevel.addColorStop(0.5, 'rgba(255,255,255,0)');
+      bevel.addColorStop(1, 'rgba(0,0,0,0.35)');
+      ctx.fillStyle = bevel;
+      hexPath(ctx, cx, cy, FRAME_R * u, u * 1.4, angle);
+      hexPath(ctx, cx, cy, SURFACE_R * u + u * 0.18, u * 1.1, angle, true);
+      ctx.fill('evenodd');
+      hexPath(ctx, cx, cy, SURFACE_R * u, u * 1.0, angle);
+      const light = ctx.createRadialGradient(cx - size * 0.2, cy - size * 0.25, size * 0.05, cx, cy, size * 0.65);
+      light.addColorStop(0, 'rgba(255,245,220,0.22)');
+      light.addColorStop(1, 'rgba(60,25,5,0.28)');
+      ctx.fillStyle = light;
+      ctx.fill();
+      ctx.restore();
+      hexPath(ctx, cx, cy, FRAME_R * u - 0.5, u * 1.4, angle);
+      ctx.strokeStyle = 'rgba(255,220,170,0.25)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      hexPath(ctx, cx, cy, SURFACE_R * u, u * 1.0, angle);
+      ctx.strokeStyle = 'rgba(255,235,200,0.35)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      const hs = this.holeSize;
+      for (let i = 0; i < N; i++) {
+        ctx.drawImage(this.holeSprite, this.pos[i].x - hs / 2, this.pos[i].y - hs / 2, hs, hs);
+      }
     }
 
     buildSprites() {
@@ -363,9 +398,15 @@
       ctx.fill();
     }
 
+    /**
+     * Pion posé sur le plateau. Quand le plateau est incliné, on l'étire
+     * verticalement et on le remonte un peu pour qu'il reste bien rond à l'écran.
+     */
     drawPiece(ctx, color, x, y, scale = 1) {
       const s = this.spriteSize * scale;
-      ctx.drawImage(this.sprites[color], x - s / 2, y - s / 2, s, s);
+      const stretch = 1 / Math.cos(this.tilt);
+      const up = this.pieceR * scale * Math.tan(this.tilt) * 0.8;
+      ctx.drawImage(this.sprites[color], x - s / 2, y - up - s * stretch / 2, s, s * stretch);
     }
 
     drawPath(ctx, path, color, alpha, dash) {
@@ -401,8 +442,8 @@
       const ctx = this.ctx;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-      ctx.drawImage(this.boardLayer, 0, 0);
       ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      this.drawBoard(ctx);
 
       if (v.lastMove) this.drawPath(ctx, v.lastMove.path, v.colors[v.lastMove.pi], 0.35, false);
       if (v.hoverPath) this.drawPath(ctx, v.hoverPath, v.colors[v.hoverPi], 0.7, true);
@@ -427,13 +468,16 @@
       for (let i = 0; i < N; i++) {
         if (v.occ[i] >= 0 && !(v.hidden && v.hidden.has(i))) pieces.push(i);
       }
+      // Plateau incliné : on dessine du fond vers l'avant pour que les pions se recouvrent bien.
+      pieces.sort((a, b) => this.pos[a].y - this.pos[b].y);
       for (const i of pieces) this.drawShadow(ctx, this.pos[i].x, this.pos[i].y, 0);
       for (const i of pieces) this.drawPiece(ctx, v.colors[v.occ[i]], this.pos[i].x, this.pos[i].y);
 
       if (v.selected >= 0 && v.selected !== undefined && !(v.hidden && v.hidden.has(v.selected))) {
         const p = this.pos[v.selected];
+        const up = this.pieceR * Math.tan(this.tilt) * 0.8;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, this.pieceR * 1.12, 0, Math.PI * 2);
+        ctx.ellipse(p.x, p.y - up, this.pieceR * 1.12, this.pieceR * 1.12 / Math.cos(this.tilt), 0, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(255,220,120,${0.6 + 0.4 * pulse})`;
         ctx.lineWidth = Math.max(2, this.u * 0.2);
         ctx.stroke();

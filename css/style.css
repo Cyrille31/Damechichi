@@ -50,6 +50,9 @@ body {
 }
 
 .brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   font-size: 1.15rem;
   font-weight: normal;
@@ -242,3 +245,7 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); }
 
 .about { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 0.9rem; }
 .about h3 { margin: 0 0 6px; font-weight: normal; font-size: 1.05rem; }
+.panel .logo { display: block; width: 110px; height: auto; margin: 0 auto 10px; }
+.label small { display: block; font-size: 0.8rem; color: #6b4a2c; }
+
+#stage { overflow: hidden; }

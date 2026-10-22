@@ -80,6 +80,10 @@
   let aiTimer = null;
   let lastMove = null;
   let raf = 0;
+  let spin = null;         // rotation douce du plateau vers le joueur humain
+  let tilt = +store.get('cc-tilt') || 0;  // inclinaison en degrés
+  const pointers = new Map();
+  let gesture = null;      // geste à deux doigts en cours
 
   function defaultConfig(n) {
     const players = [];
@@ -88,10 +92,10 @@
         ? { name: 'Joueur 1', type: 'human', level: 'medium' }
         : { name: 'Ordinateur ' + i, type: 'ai', level: 'medium' });
     }
-    return { players, speed: 1, showMoves: true };
+    return { players, speed: 1, showMoves: true, longJumps: true, autoRotate: true };
   }
 
-  const isHumanTurn = () => game && !game.over && !job && game.players[game.current].type === 'human';
+  const isHumanTurn = () => game && !game.over && !job && !spin && game.players[game.current].type === 'human';
   const playerLabel = pi => `${game.players[pi].name} (${PIECE_COLORS[colors[pi]].name})`;
 
   // ---------- Démarrage ----------
@@ -101,7 +105,7 @@
     displayOcc = null;
     config = cfg;
     store.set('cc-settings', cfg);
-    game = new Game({ players: cfg.players });
+    game = new Game({ players: cfg.players, longJumps: cfg.longJumps !== false });
     colors = game.players.map((p, i) => i);
     lastMove = null;
     clearSelection();
@@ -113,10 +117,12 @@
       const last = game.history[game.history.length - 1];
       if (last && !last.pass) lastMove = last;
     }
-    const firstHuman = game.players.findIndex(p => p.type === 'human');
+    let viewer = game.players.findIndex(p => p.type === 'human');
+    if (cfg.autoRotate !== false && !game.over && game.players[game.current].type === 'human') viewer = game.current;
     const armColors = [null, null, null, null, null, null];
     game.players.forEach((p, i) => { armColors[p.arm] = colors[i]; });
-    renderer.setView(firstHuman >= 0 ? game.players[firstHuman].arm : 0, armColors);
+    spin = null;
+    renderer.setView(viewer >= 0 ? game.players[viewer].arm : 0, armColors);
     save();
     requestDraw();
     if (game.over) showEnd(); else nextTurn();
@@ -147,6 +153,7 @@
     updateHud();
     if (game.over) { showEnd(); return; }
     const pi = game.current, p = game.players[pi];
+    if (p.type === 'human' && config.autoRotate !== false) rotateTo(p.arm);
     if (!game.legalMoves(pi).length) {
       toast(`${playerLabel(pi)} ne peut pas bouger et passe son tour.`);
       aiTimer = setTimeout(() => { game.pass(); save(); nextTurn(); }, 900);
@@ -207,6 +214,41 @@
   }
 
   // ---------- Animation ----------
+  /** Fait pivoter doucement le plateau pour amener la branche `arm` en bas. */
+  function rotateTo(arm) {
+    const from = renderer.angle;
+    let delta = Renderer.armAngle(arm) - from;
+    delta = ((delta + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+    if (Math.abs(delta) < 1e-3) return;
+    spin = { from, delta, t0: performance.now(), dur: (700 + 300 * Math.abs(delta) / (Math.PI / 3)) / Math.sqrt(config.speed) };
+    clearSelection();
+    requestDraw();
+  }
+
+  function spinFrame(now) {
+    const t = Math.min(1, (now - spin.t0) / spin.dur);
+    renderer.setAngle(spin.from + spin.delta * ease(t));
+    if (t >= 1) {
+      spin = null;
+      updateHud();
+    }
+  }
+
+  /** Perspective P et réduction k qui gardent le plateau incliné dans l'écran. */
+  function tiltParams() {
+    const phi = renderer.tilt, P = Math.max(renderer.w, renderer.h) * 1.6;
+    const yb = 7.5 * renderer.u;  // hauteur des coins latéraux du cadre
+    return { phi, P, k: (P - yb * Math.sin(phi)) / P };
+  }
+
+  function applyTilt() {
+    tilt = Math.max(0, Math.min(50, tilt));
+    renderer.tilt = tilt * Math.PI / 180;
+    const { P, k } = tiltParams();
+    canvas.style.transform = tilt ? `perspective(${P}px) scale(${k}) rotateX(${tilt}deg)` : '';
+    store.set('cc-tilt', Math.round(tilt));
+    requestDraw();
+  }
   function animateMove(move, pi, onDone) {
     const sp = renderer.spacing;
     const segs = [];
@@ -277,6 +319,7 @@
   function frame(now) {
     raf = 0;
     if (!game) return;
+    if (spin) spinFrame(now);
     let movers = job ? jobFrame(now) : null;
     const hidden = job ? new Set(job.hidden) : new Set();
     if (drag && drag.moved) {
@@ -300,7 +343,7 @@
       lastMove: job ? null : lastMove,
       time: now
     });
-    if (job || selected >= 0) requestDraw();
+    if (job || spin || selected >= 0) requestDraw();
   }
 
   // ---------- Saisie ----------
@@ -317,14 +360,34 @@
     targets = targetMoves.map(m => m.to);
   }
 
+  /** Point du plateau sous le doigt, en tenant compte de l'inclinaison (CSS 3D). */
   function localPoint(e) {
-    const r = canvas.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
+    const r = $('stage').getBoundingClientRect();
+    const X = e.clientX - r.left - r.width / 2, Y = e.clientY - r.top - r.height / 2;
+    const { phi, P, k } = tiltParams();
+    const y = phi ? Y * P / (k * P * Math.cos(phi) + Y * Math.sin(phi)) : Y;
+    const x = phi ? X * (P - y * Math.sin(phi)) / (k * P) : X;
+    return { x: x + renderer.w / 2, y: y + renderer.h / 2 };
   }
+
+  const midY = () => {
+    let sum = 0;
+    for (const p of pointers.values()) sum += p.y;
+    return sum / pointers.size;
+  };
 
   canvas.addEventListener('pointerdown', e => {
     Sound.unlock();
-    if (!isHumanTurn()) return;
+    pointers.set(e.pointerId, { y: e.clientY });
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* pointeur déjà relâché */ }
+    if (pointers.size >= 2) {
+      // Deux doigts : on incline le plateau au lieu de jouer.
+      gesture = { tilt0: tilt, y0: midY() };
+      drag = null;
+      requestDraw();
+      return;
+    }
+    if (gesture || !isHumanTurn()) return;
     const p = localPoint(e), c = renderer.hitTest(p.x, p.y);
     if (c >= 0 && game.occ[c] === game.current) {
       const again = c === selected;
@@ -340,6 +403,14 @@
   });
 
   canvas.addEventListener('pointermove', e => {
+    if (pointers.has(e.pointerId)) pointers.get(e.pointerId).y = e.clientY;
+    if (gesture) {
+      if (pointers.size >= 2) {
+        tilt = gesture.tilt0 - (midY() - gesture.y0) * 0.25;
+        applyTilt();
+      }
+      return;
+    }
     const p = localPoint(e);
     const c = renderer.hitTest(p.x, p.y);
     if (c !== hoverCell) { hoverCell = c; requestDraw(); }
@@ -362,8 +433,22 @@
     }
     requestDraw();
   }
-  canvas.addEventListener('pointerup', e => endDrag(e, false));
-  canvas.addEventListener('pointercancel', e => endDrag(e, true));
+  function releasePointer(e, cancelled) {
+    pointers.delete(e.pointerId);
+    if (gesture) {
+      if (!pointers.size) gesture = null;
+      return;
+    }
+    endDrag(e, cancelled);
+  }
+  canvas.addEventListener('pointerup', e => releasePointer(e, false));
+  canvas.addEventListener('pointercancel', e => releasePointer(e, true));
+  // Sur PC : la molette incline le plateau.
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    tilt -= e.deltaY * 0.04;
+    applyTilt();
+  }, { passive: false });
   canvas.addEventListener('pointerleave', () => { if (!drag && hoverCell >= 0) { hoverCell = -1; requestDraw(); } });
 
   // ---------- Affichage ----------
@@ -458,6 +543,8 @@
     });
     $('speed').value = String(draft.speed);
     $('showMoves').checked = draft.showMoves;
+    $('longJumps').checked = draft.longJumps !== false;
+    $('autoRotate').checked = draft.autoRotate !== false;
   }
 
   document.querySelectorAll('#countBtns button').forEach(b => b.addEventListener('click', () => {
@@ -471,6 +558,8 @@
     Sound.unlock();
     draft.speed = parseFloat($('speed').value) || 1;
     draft.showMoves = $('showMoves').checked;
+    draft.longJumps = $('longJumps').checked;
+    draft.autoRotate = $('autoRotate').checked;
     draft.players.forEach((p, i) => {
       p.name = (p.name || '').trim() || (p.type === 'human' ? 'Joueur ' : 'Ordinateur ') + (i + 1);
     });
@@ -503,7 +592,8 @@
     if (e.key === 'Escape') { clearSelection(); requestDraw(); }
   });
 
-  new ResizeObserver(() => { renderer.resize(); requestDraw(); }).observe($('stage'));
+  new ResizeObserver(() => { renderer.resize(); applyTilt(); }).observe($('stage'));
+  applyTilt();
 
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -515,5 +605,5 @@
   }
 
   // Accès pour les tests automatisés.
-  window.__cc = { get game() { return game; }, renderer, start, BOARD };
+  window.__cc = { get game() { return game; }, get selected() { return selected; }, get tilt() { return tilt; }, renderer, start, BOARD };
 })();

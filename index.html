@@ -23,7 +23,7 @@
 </head>
 <body>
   <header id="topbar">
-    <h1 class="brand">Dames chinoises</h1>
+    <h1 class="brand"><img src="icons/icon.svg" alt="" width="30" height="30">Dames chinoises</h1>
     <div id="turn" aria-live="polite"><span class="dot"></span><span id="turnName"></span></div>
     <nav class="actions">
       <button id="btnUndo" title="Annuler le dernier coup" aria-label="Annuler">↶</button>
@@ -40,6 +40,7 @@
 
   <div id="setup" class="modal" hidden>
     <div class="panel">
+      <img class="logo" src="icons/logo.svg" alt="Dames chinoises">
       <h2>Nouvelle partie</h2>
       <div class="field">
         <span class="label">Nombre de joueurs</span>
@@ -60,6 +61,14 @@
         <label for="showMoves" class="label">Montrer les coups possibles</label>
         <input type="checkbox" id="showMoves" checked>
       </div>
+      <div class="field row">
+        <label for="longJumps" class="label">Mode Bonne-Maman<small>Sauter par-dessus les cases vides</small></label>
+        <input type="checkbox" id="longJumps" checked>
+      </div>
+      <div class="field row">
+        <label for="autoRotate" class="label">Pivoter le plateau<small>Le triangle de l'humain qui joue vient en bas</small></label>
+        <input type="checkbox" id="autoRotate" checked>
+      </div>
       <div class="buttons">
         <button id="btnCancelSetup" class="secondary">Fermer</button>
         <button id="btnStart" class="primary">Commencer</button>
@@ -76,12 +85,14 @@
         <li><b>un pas</b> vers un trou voisin libre ;</li>
         <li><b>ou un saut</b> par-dessus un pion (à soi ou adverse) aligné.</li>
       </ul>
-      <p><b>Saut long :</b> si le pion sauté est séparé du vôtre par <i>n</i> trous vides, vous retombez de l'autre côté en laissant aussi <i>n</i> trous vides, à condition que tous ces trous et le trou d'arrivée soient libres. Avec <i>n</i> = 0, c'est le saut classique.</p>
+      <p><b>Mode Bonne-Maman (saut long, coché par défaut) :</b> si le pion sauté est séparé du vôtre par <i>n</i> trous vides, vous retombez de l'autre côté en laissant aussi <i>n</i> trous vides, à condition que tous ces trous et le trou d'arrivée soient libres. Avec <i>n</i> = 0, c'est le saut classique. Sans le mode Bonne-Maman, seul le saut classique par-dessus un pion voisin est permis.</p>
       <p>Les sauts peuvent s'enchaîner dans toutes les directions pendant le même tour.</p>
       <p><b>Triangles des autres :</b> un pion peut traverser les triangles des autres joueurs pendant ses sauts, mais il ne peut pas s'y arrêter. Il ne s'arrête qu'au centre, dans son triangle de départ ou dans son triangle d'arrivée.</p>
       <p><b>Anti-blocage :</b> si votre pointe d'arrivée est pleine et que les pions adverses qui y restent (3 au plus) ne peuvent plus bouger, vous gagnez quand même : ils échangent leur place avec vos pions restés dehors.</p>
       <p class="hint">Touchez (ou cliquez) un de vos pions, puis un trou en surbrillance. Vous pouvez aussi faire glisser le pion. Survolez un trou pour voir le chemin des sauts.</p>
+      <p class="hint">Pour incliner le plateau, faites glisser deux doigts vers le haut ou vers le bas (sur PC : la molette de la souris).</p>
       <div class="about">
+        <img class="logo" src="icons/logo.svg" alt="Dames chinoises">
         <h3>À propos</h3>
         <p>CGExcel — Cyrille Gindre — © 2026</p>
         <p>Licence MIT + BAL 1.0 — Bonne Action License</p>

@@ -25,6 +25,8 @@ Ces règles s'appliquent à toutes les sessions qui travaillent sur ce dépôt.
 
 ## Règles du jeu à respecter
 
-- Saut long : n cases vides, un pion, n cases vides, puis la case d'arrivée.
+- Mode « Bonne-Maman » (coché par défaut) : saut long — n cases vides, un
+  pion, n cases vides, puis la case d'arrivée. Sans ce mode, seul le saut
+  classique par-dessus un pion voisin est permis.
 - Un pion peut traverser les triangles des autres joueurs mais ne peut pas
   s'y arrêter (seulement au centre, chez lui ou dans son triangle d'arrivée).

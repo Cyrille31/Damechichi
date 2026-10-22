@@ -1,3 +1,5 @@
+<p align="center"><img src="icons/logo.svg" alt="Dames chinoises" width="220"></p>
+
 # Dames chinoises
 
 Jeu de dames chinoises sur un plateau et des pions en bois, jouable sur
@@ -6,10 +8,15 @@ comme une application (PWA, fonctionne hors ligne).
 
 ## Particularités
 
-- **Saut long** : un pion aligné avec un autre pion, séparé de lui par *n*
+- **Mode Bonne-Maman** (coché par défaut) — **saut long** : un pion aligné avec un autre pion, séparé de lui par *n*
   trous vides, peut sauter par-dessus et retomber de l'autre côté en laissant
   *n* trous vides (tous ces trous et le trou d'arrivée doivent être libres).
-  Avec *n* = 0, c'est le saut classique. Les sauts s'enchaînent.
+  Avec *n* = 0, c'est le saut classique. Les sauts s'enchaînent. Sans le
+  mode Bonne-Maman, seul le saut classique par-dessus un pion voisin est permis.
+- **Plateau qui pivote** (option) : à chaque tour d'un joueur humain, le
+  plateau tourne doucement pour amener son triangle en bas de l'écran.
+- **Plateau inclinable** : glisser deux doigts vers le haut ou le bas (molette
+  de la souris sur PC) pour incliner le plateau en perspective.
 - **Déplacements animés** : on voit le pion sauter de trou en trou, avec un
   petit « toc » de bois à chaque atterrissage. Le dernier coup reste tracé et,
   en survolant un trou, on voit le chemin des sauts.

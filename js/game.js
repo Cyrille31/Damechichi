@@ -6,9 +6,10 @@
  * Voir le fichier LICENSE.
  *
  * Plateau en étoile de 121 trous, repéré en coordonnées cubiques (q, r, s)
- * avec q + r + s = 0. Variante « saut long » : un pion aligné avec un autre,
- * séparé par n cases vides, peut sauter par-dessus et retomber de l'autre côté
- * en laissant n cases vides. Les sauts s'enchaînent.
+ * avec q + r + s = 0. Mode « Bonne-Maman » (saut long) : un pion aligné avec
+ * un autre, séparé par n cases vides, peut sauter par-dessus et retomber de
+ * l'autre côté en laissant n cases vides. Sans ce mode, seul le saut classique
+ * par-dessus un pion voisin est permis. Les sauts s'enchaînent.
  */
 (function (root) {
   'use strict';
@@ -85,8 +86,9 @@
    * (liste des cases traversées) pour l'animation.
    * `canStop(cell)` dit si le pion peut s'arrêter sur une case ; il peut
    * toujours la traverser au cours d'une suite de sauts.
+   * `longJumps` (mode Bonne-Maman) autorise les sauts par-dessus des cases vides.
    */
-  function movesFrom(occ, from, canStop = () => true) {
+  function movesFrom(occ, from, canStop = () => true, longJumps = true) {
     const nb = BOARD.nb;
     const res = [];
     for (let d = 0; d < 6; d++) {
@@ -110,7 +112,7 @@
           k++;
           if (occ[cur] >= 0) break;
         }
-        if (cur < 0) continue;
+        if (cur < 0 || (k > 1 && !longJumps)) continue;
         // Il faut k - 1 cases vides derrière le pion, puis la case d'arrivée libre.
         let land = cur, ok = true;
         for (let j = 0; j < k; j++) {
@@ -143,6 +145,7 @@
       const seats = SEATS[n];
       if (!seats) throw new Error('Nombre de joueurs invalide : ' + n);
       this.config = config;
+      this.longJumps = config.longJumps !== false;
       this.players = config.players.map((p, i) => Object.assign({}, p, {
         arm: seats[i], target: opposite(seats[i]), finished: 0
       }));
@@ -169,7 +172,7 @@
 
     movesFor(cell) {
       const pi = this.occ[cell];
-      return movesFrom(this.occ, cell, c => this.canStop(pi, c));
+      return movesFrom(this.occ, cell, c => this.canStop(pi, c), this.longJumps);
     }
 
     legalMoves(pi = this.current) {
