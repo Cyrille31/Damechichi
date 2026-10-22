@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<!-- Dames chinoises — Copyright (c) 2026 cgexcel. Voir le fichier LICENSE. -->
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#2a170b">
+  <meta name="description" content="Dames chinoises sur plateau en bois, avec sauts longs, de 2 à 6 joueurs humains ou ordinateur.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Dames chinoises">
+  <title>Dames chinoises</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header id="topbar">
+    <h1 class="brand">Dames chinoises</h1>
+    <div id="turn" aria-live="polite"><span class="dot"></span><span id="turnName"></span></div>
+    <nav class="actions">
+      <button id="btnUndo" title="Annuler le dernier coup" aria-label="Annuler">↶</button>
+      <button id="btnSound" title="Son" aria-label="Son">🔊</button>
+      <button id="btnRules" title="Règles" aria-label="Règles">?</button>
+      <button id="btnMenu" title="Nouvelle partie" aria-label="Nouvelle partie">☰</button>
+    </nav>
+  </header>
+
+  <main id="stage">
+    <canvas id="board" aria-label="Plateau de jeu"></canvas>
+    <div id="toast" role="status"></div>
+  </main>
+
+  <div id="setup" class="modal" hidden>
+    <div class="panel">
+      <h2>Nouvelle partie</h2>
+      <div class="field">
+        <span class="label">Nombre de joueurs</span>
+        <div id="countBtns" class="segmented">
+          <button data-n="2">2</button><button data-n="3">3</button><button data-n="4">4</button><button data-n="5">5</button><button data-n="6">6</button>
+        </div>
+      </div>
+      <div id="seats"></div>
+      <div class="field row">
+        <label for="speed" class="label">Vitesse des pions</label>
+        <select id="speed">
+          <option value="0.6">Lente</option>
+          <option value="1">Normale</option>
+          <option value="1.8">Rapide</option>
+        </select>
+      </div>
+      <div class="field row">
+        <label for="showMoves" class="label">Montrer les coups possibles</label>
+        <input type="checkbox" id="showMoves" checked>
+      </div>
+      <div class="buttons">
+        <button id="btnCancelSetup" class="secondary">Fermer</button>
+        <button id="btnStart" class="primary">Commencer</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="rules" class="modal" hidden>
+    <div class="panel">
+      <h2>Règles</h2>
+      <p>Chaque joueur part d'une pointe de l'étoile avec 10 pions. Le premier qui amène tous ses pions dans la pointe opposée gagne.</p>
+      <p>À son tour, on déplace <b>un seul pion</b> :</p>
+      <ul>
+        <li><b>un pas</b> vers un trou voisin libre ;</li>
+        <li><b>ou un saut</b> par-dessus un pion (à soi ou adverse) aligné.</li>
+      </ul>
+      <p><b>Saut long :</b> si le pion sauté est séparé du vôtre par <i>n</i> trous vides, vous retombez de l'autre côté en laissant aussi <i>n</i> trous vides, à condition que tous ces trous et le trou d'arrivée soient libres. Avec <i>n</i> = 0, c'est le saut classique.</p>
+      <p>Les sauts peuvent s'enchaîner dans toutes les directions pendant le même tour.</p>
+      <p><b>Anti-blocage :</b> si votre pointe d'arrivée est pleine et que les pions adverses qui y restent (3 au plus) ne peuvent plus bouger, vous gagnez quand même : ils échangent leur place avec vos pions restés dehors.</p>
+      <p class="hint">Touchez (ou cliquez) un de vos pions, puis un trou en surbrillance. Vous pouvez aussi faire glisser le pion. Survolez un trou pour voir le chemin des sauts.</p>
+      <div class="buttons"><button class="primary" data-close>Compris</button></div>
+    </div>
+  </div>
+
+  <div id="endgame" class="modal" hidden>
+    <div class="panel">
+      <h2 id="endTitle">Partie terminée</h2>
+      <ol id="ranking"></ol>
+      <div class="buttons">
+        <button class="secondary" data-close>Voir le plateau</button>
+        <button id="btnReplay" class="primary">Rejouer</button>
+      </div>
+    </div>
+  </div>
+
+  <footer id="copyright">© 2026 cgexcel</footer>
+
+  <script src="js/game.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
