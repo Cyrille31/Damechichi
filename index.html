@@ -1,5 +1,11 @@
 <!DOCTYPE html>
-<!-- Dames chinoises — Copyright (c) 2026 cgexcel. Voir le fichier LICENSE. -->
+<!--
+  Dames chinoises
+  CGExcel — Cyrille Gindre — © 2026
+  Licence MIT + BAL 1.0 — Bonne Action License
+  En échange, une seule chose vous est demandée, sur l'honneur : faire une bonne action chaque jour. Aider un voisin, sourire à un inconnu, ramasser un papier… c'est vous qui voyez.
+  Voir le fichier LICENSE.
+-->
 <html lang="fr">
 <head>
   <meta charset="utf-8">
@@ -72,8 +78,15 @@
       </ul>
       <p><b>Saut long :</b> si le pion sauté est séparé du vôtre par <i>n</i> trous vides, vous retombez de l'autre côté en laissant aussi <i>n</i> trous vides, à condition que tous ces trous et le trou d'arrivée soient libres. Avec <i>n</i> = 0, c'est le saut classique.</p>
       <p>Les sauts peuvent s'enchaîner dans toutes les directions pendant le même tour.</p>
+      <p><b>Triangles des autres :</b> un pion peut traverser les triangles des autres joueurs pendant ses sauts, mais il ne peut pas s'y arrêter. Il ne s'arrête qu'au centre, dans son triangle de départ ou dans son triangle d'arrivée.</p>
       <p><b>Anti-blocage :</b> si votre pointe d'arrivée est pleine et que les pions adverses qui y restent (3 au plus) ne peuvent plus bouger, vous gagnez quand même : ils échangent leur place avec vos pions restés dehors.</p>
       <p class="hint">Touchez (ou cliquez) un de vos pions, puis un trou en surbrillance. Vous pouvez aussi faire glisser le pion. Survolez un trou pour voir le chemin des sauts.</p>
+      <div class="about">
+        <h3>À propos</h3>
+        <p>CGExcel — Cyrille Gindre — © 2026</p>
+        <p>Licence MIT + BAL 1.0 — Bonne Action License</p>
+        <p>En échange, une seule chose vous est demandée, sur l'honneur : faire une bonne action chaque jour. Aider un voisin, sourire à un inconnu, ramasser un papier… c'est vous qui voyez.</p>
+      </div>
       <div class="buttons"><button class="primary" data-close>Compris</button></div>
     </div>
   </div>
@@ -89,7 +102,7 @@
     </div>
   </div>
 
-  <footer id="copyright">© 2026 cgexcel</footer>
+  <footer id="copyright">CGExcel — Cyrille Gindre — © 2026</footer>
 
   <script src="js/game.js"></script>
   <script src="js/ai.js"></script>

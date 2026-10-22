@@ -1,4 +1,10 @@
-/* Dames chinoises — Copyright (c) 2026 cgexcel. Voir le fichier LICENSE. */
+/*
+ * Dames chinoises
+ * CGExcel — Cyrille Gindre — © 2026
+ * Licence MIT + BAL 1.0 — Bonne Action License
+ * En échange, une seule chose vous est demandée, sur l'honneur : faire une bonne action chaque jour. Aider un voisin, sourire à un inconnu, ramasser un papier… c'est vous qui voyez.
+ * Voir le fichier LICENSE.
+ */
 :root {
   --bg-1: #3a2312;
   --bg-2: #160b04;
@@ -233,3 +239,6 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); }
   #turn { justify-content: flex-start; }
   .actions button { width: 38px; height: 38px; }
 }
+
+.about { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 0.9rem; }
+.about h3 { margin: 0 0 6px; font-weight: normal; font-size: 1.05rem; }

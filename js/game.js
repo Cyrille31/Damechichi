@@ -1,6 +1,9 @@
 /*
  * Dames chinoises — règles du jeu.
- * Copyright (c) 2026 cgexcel. Voir le fichier LICENSE.
+ * CGExcel — Cyrille Gindre — © 2026
+ * Licence MIT + BAL 1.0 — Bonne Action License
+ * En échange, une seule chose vous est demandée, sur l'honneur : faire une bonne action chaque jour. Aider un voisin, sourire à un inconnu, ramasser un papier… c'est vous qui voyez.
+ * Voir le fichier LICENSE.
  *
  * Plateau en étoile de 121 trous, repéré en coordonnées cubiques (q, r, s)
  * avec q + r + s = 0. Variante « saut long » : un pion aligné avec un autre,
@@ -80,13 +83,15 @@
    * Tous les déplacements d'un pion : un pas vers une case voisine libre,
    * ou une suite de sauts longs. Chaque coup porte son chemin complet
    * (liste des cases traversées) pour l'animation.
+   * `canStop(cell)` dit si le pion peut s'arrêter sur une case ; il peut
+   * toujours la traverser au cours d'une suite de sauts.
    */
-  function movesFrom(occ, from) {
+  function movesFrom(occ, from, canStop = () => true) {
     const nb = BOARD.nb;
     const res = [];
     for (let d = 0; d < 6; d++) {
       const n = nb[from][d];
-      if (n >= 0 && occ[n] < 0) res.push({ from, to: n, path: [from, n], jump: false });
+      if (n >= 0 && occ[n] < 0 && canStop(n)) res.push({ from, to: n, path: [from, n], jump: false });
     }
 
     // Le pion qui bouge libère sa case de départ pendant la recherche.
@@ -120,7 +125,7 @@
     occ[from] = saved;
 
     for (const [cell, par] of parent) {
-      if (cell === from) continue;
+      if (cell === from || !canStop(cell)) continue;
       const path = [cell];
       for (let p = par; p !== -1; p = parent.get(p)) path.push(p);
       path.reverse();
@@ -155,9 +160,21 @@
       return list;
     }
 
+    /** Un pion ne peut s'arrêter ni dans les triangles des autres : seulement au centre, chez soi ou à l'arrivée. */
+    canStop(pi, cell) {
+      const arm = BOARD.cells[cell].arm;
+      const p = this.players[pi];
+      return arm < 0 || arm === p.arm || arm === p.target;
+    }
+
+    movesFor(cell) {
+      const pi = this.occ[cell];
+      return movesFrom(this.occ, cell, c => this.canStop(pi, c));
+    }
+
     legalMoves(pi = this.current) {
       const moves = [];
-      for (const c of this.piecesOf(pi)) moves.push(...movesFrom(this.occ, c));
+      for (const c of this.piecesOf(pi)) moves.push(...this.movesFor(c));
       return moves;
     }
 
@@ -175,7 +192,7 @@
         if (this.occ[c] !== pi) foreign.push(c);
       }
       if (!foreign.length) return true;
-      return foreign.length <= 3 && foreign.every(c => movesFrom(this.occ, c).length === 0);
+      return foreign.length <= 3 && foreign.every(c => this.movesFor(c).length === 0);
     }
 
     activeCount() {
@@ -227,7 +244,7 @@
 
     play(move) {
       const pi = this.current;
-      if (this.occ[move.from] !== pi || this.occ[move.to] >= 0) throw new Error('Coup illégal');
+      if (this.occ[move.from] !== pi || this.occ[move.to] >= 0 || !this.canStop(pi, move.to)) throw new Error('Coup illégal');
       const h = { pi, from: move.from, to: move.to, path: move.path, rankingLen: this.ranking.length };
       this.history.push(h);
       this.occ[move.to] = pi;

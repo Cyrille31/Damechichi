@@ -1,11 +1,14 @@
 /*
  * Dames chinoises — interface et déroulement de la partie.
- * Copyright (c) 2026 cgexcel. Voir le fichier LICENSE.
+ * CGExcel — Cyrille Gindre — © 2026
+ * Licence MIT + BAL 1.0 — Bonne Action License
+ * En échange, une seule chose vous est demandée, sur l'honneur : faire une bonne action chaque jour. Aider un voisin, sourire à un inconnu, ramasser un papier… c'est vous qui voyez.
+ * Voir le fichier LICENSE.
  */
 (function () {
   'use strict';
 
-  const { Game, movesFrom, BOARD } = window.CC;
+  const { Game, BOARD } = window.CC;
   const AI = window.CCAI;
   const { Renderer, PIECE_COLORS } = window.CCRender;
 
@@ -310,7 +313,7 @@
 
   function select(cell) {
     selected = cell;
-    targetMoves = movesFrom(game.occ, cell);
+    targetMoves = game.movesFor(cell);
     targets = targetMoves.map(m => m.to);
   }
 

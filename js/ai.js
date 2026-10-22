@@ -1,6 +1,9 @@
 /*
  * Dames chinoises — joueur ordinateur.
- * Copyright (c) 2026 cgexcel. Voir le fichier LICENSE.
+ * CGExcel — Cyrille Gindre — © 2026
+ * Licence MIT + BAL 1.0 — Bonne Action License
+ * En échange, une seule chose vous est demandée, sur l'honneur : faire une bonne action chaque jour. Aider un voisin, sourire à un inconnu, ramasser un papier… c'est vous qui voyez.
+ * Voir le fichier LICENSE.
  */
 (function (root) {
   'use strict';

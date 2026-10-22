@@ -16,6 +16,9 @@ comme une application (PWA, fonctionne hors ligne).
 - **2 à 6 joueurs**, chacun humain ou ordinateur : l'ordinateur peut remplacer
   de 0 à 5 joueurs (et même tous, en démonstration), en 3 niveaux : facile,
   moyen, difficile.
+- Les pions peuvent **traverser** les triangles des autres joueurs pendant
+  leurs sauts, mais **pas s'y arrêter** : ils ne s'arrêtent qu'au centre,
+  dans leur triangle de départ ou dans leur triangle d'arrivée.
 - Annulation des coups, sauvegarde automatique de la partie en cours,
   plateau tourné pour que le premier joueur humain soit en bas.
 - **Anti-blocage** : si votre pointe d'arrivée est pleine et que les pions
@@ -43,4 +46,8 @@ En local : `python3 -m http.server` puis http://localhost:8000.
 
 ## Licence
 
-MIT — Copyright (c) 2026 cgexcel. Voir [LICENSE](LICENSE).
+Licence MIT + BAL 1.0 — Bonne Action License
+
+En échange, une seule chose vous est demandée, sur l'honneur : faire une bonne action chaque jour. Aider un voisin, sourire à un inconnu, ramasser un papier… c'est vous qui voyez.
+
+CGExcel — Cyrille Gindre — © 2026 — voir [LICENSE](LICENSE).
