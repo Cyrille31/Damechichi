@@ -157,7 +157,8 @@
     }
 
     layout() {
-      this.u = Math.min(this.w / 2 / (FRAME_R * 0.866 + 0.4), this.h / 2 / (FRAME_R + 0.4));
+      // Largeur réelle du cadre : demi-largeur de l'hexagone moins l'arrondi des coins (≈ 0,3 u).
+      this.u = Math.min(this.w / 2 / (FRAME_R * 0.866 - 0.25), this.h / 2 / (FRAME_R + 0.4));
       this.cx = this.w / 2;
       this.cy = this.h / 2;
       this.spacing = SQRT3 * this.u;
@@ -377,7 +378,25 @@
       });
     }
 
-    hitTest(px, py) {
+    /**
+     * Case sous le point (px, py). Avec `occ`, on cherche d'abord une boule
+     * telle qu'elle est dessinée (relevée et étirée quand le plateau est
+     * incliné), la plus en avant si plusieurs se recouvrent ; sinon le trou.
+     */
+    hitTest(px, py, occ) {
+      if (occ) {
+        const up = this.pieceR * Math.tan(this.tilt) * 0.8, stretch = 1 / Math.cos(this.tilt);
+        let ball = -1, front = -Infinity;
+        for (let i = 0; i < N; i++) {
+          if (occ[i] < 0) continue;
+          const dx = px - this.pos[i].x, dy = (py - (this.pos[i].y - up)) / stretch;
+          if (dx * dx + dy * dy <= this.pieceR * this.pieceR && this.pos[i].y > front) {
+            front = this.pos[i].y;
+            ball = i;
+          }
+        }
+        if (ball >= 0) return ball;
+      }
       let best = -1, bd = Infinity;
       for (let i = 0; i < N; i++) {
         const dx = this.pos[i].x - px, dy = this.pos[i].y - py, d = dx * dx + dy * dy;

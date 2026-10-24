@@ -15,8 +15,17 @@ comme une application (PWA, fonctionne hors ligne).
   mode Bonne-Maman, seul le saut classique par-dessus un pion voisin est permis.
 - **Plateau qui pivote** (option) : à chaque tour d'un joueur humain, le
   plateau tourne doucement pour amener son triangle en bas de l'écran.
+- **Cases d'arrivée possibles** : toujours montrées, montrées seulement en
+  faisant glisser le pion, ou jamais montrées.
+- **Nombre de tours** (option) : affiché dans le bandeau et sur l'écran de fin.
+- **Finir seul** : quand la partie s'arrête, le dernier joueur peut continuer
+  seul jusqu'à ranger tous ses pions.
+- **Bouton 📲 Installer** : installe le jeu sur le smartphone ou le PC
+  (instructions affichées sur iPhone/iPad, où l'installation passe par
+  Safari → Partager → « Sur l'écran d'accueil »).
 - **Plateau inclinable** : glisser deux doigts vers le haut ou le bas (molette
-  de la souris sur PC) pour incliner le plateau en perspective.
+  de la souris sur PC) pour incliner le plateau en perspective ; on touche
+  alors directement la boule pour la prendre.
 - **Déplacements animés** : on voit le pion sauter de trou en trou, avec un
   petit « toc » de bois à chaque atterrissage. Le dernier coup reste tracé et,
   en survolant un trou, on voit le chemin des sauts.

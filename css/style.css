@@ -249,3 +249,19 @@ input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); }
 .label small { display: block; font-size: 0.8rem; color: #6b4a2c; }
 
 #stage { overflow: hidden; }
+.buttons.wrap { flex-wrap: wrap; }
+.actions button[hidden] { display: none; }
+#ranking .turns { color: #6b4a2c; font-size: 0.9rem; }
+
+@media (max-width: 520px) {
+  #turnName {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    font-size: 0.88rem;
+    line-height: 1.15;
+  }
+  .actions { gap: 4px; }
+  .actions button { width: 36px; height: 36px; font-size: 1.05rem; }
+}

@@ -92,8 +92,12 @@
         ? { name: 'Joueur 1', type: 'human', level: 'medium' }
         : { name: 'Ordinateur ' + i, type: 'ai', level: 'medium' });
     }
-    return { players, speed: 1, showMoves: true, longJumps: true, autoRotate: true };
+    return { players, speed: 1, showMoves: 'always', showTurns: true, longJumps: true, autoRotate: true };
   }
+
+  /** Cases d'arrivée affichées : 'always', 'drag' (seulement en faisant glisser) ou 'never'. */
+  const movesMode = (cfg = config) => (cfg.showMoves === true || cfg.showMoves === undefined ? 'always'
+    : cfg.showMoves === false ? 'drag' : cfg.showMoves);
 
   const isHumanTurn = () => game && !game.over && !job && !spin && game.players[game.current].type === 'human';
   const playerLabel = pi => `${game.players[pi].name} (${PIECE_COLORS[colors[pi]].name})`;
@@ -110,10 +114,12 @@
     lastMove = null;
     clearSelection();
     if (replay) {
-      for (const m of replay) {
+      replay.moves.forEach((m, i) => {
+        if (i === replay.soloAt) game.finishSolo();
         if (m.pass) game.pass();
         else game.play(m);
-      }
+      });
+      if (replay.soloAt === replay.moves.length) game.finishSolo();
       const last = game.history[game.history.length - 1];
       if (last && !last.pass) lastMove = last;
     }
@@ -132,7 +138,8 @@
     if (!game) return;
     store.set('cc-game', {
       config,
-      moves: game.history.map(h => (h.pass ? { pass: true } : { from: h.from, to: h.to, path: h.path }))
+      moves: game.history.map(h => (h.pass ? { pass: true } : { from: h.from, to: h.to, path: h.path })),
+      soloAt: game.soloStart >= 0 ? game.soloStart : null
     });
   }
 
@@ -140,7 +147,7 @@
     const saved = store.get('cc-game');
     if (!saved || !saved.config) return false;
     try {
-      start(saved.config, saved.moves || []);
+      start(saved.config, { moves: saved.moves || [], soloAt: saved.soloAt });
       return true;
     } catch (e) {
       store.remove('cc-game');
@@ -326,8 +333,9 @@
       hidden.add(drag.cell);
       movers = [{ color: colors[game.current], x: drag.x, y: drag.y, lift: renderer.spacing * 0.25 }];
     }
+    const mode = movesMode();
     let hoverPath = null;
-    if (targetMoves && hoverCell >= 0) {
+    if (mode === 'always' && targetMoves && hoverCell >= 0) {
       const m = targetMoves.find(mv => mv.to === hoverCell);
       if (m && m.path.length > 2) hoverPath = m.path;
     }
@@ -337,7 +345,7 @@
       hidden,
       movers,
       selected,
-      targets: config.showMoves || drag ? targets : null,
+      targets: mode === 'always' || (mode === 'drag' && drag) ? targets : null,
       hoverPath,
       hoverPi: game.current,
       lastMove: job ? null : lastMove,
@@ -387,15 +395,23 @@
       requestDraw();
       return;
     }
+    if (game && game.over && !gesture && $('endgame').hidden) { showEnd(); return; }
     if (gesture || !isHumanTurn()) return;
-    const p = localPoint(e), c = renderer.hitTest(p.x, p.y);
-    if (c >= 0 && game.occ[c] === game.current) {
+    const p = localPoint(e);
+    const ball = renderer.hitTest(p.x, p.y, game.occ), c = renderer.hitTest(p.x, p.y);
+    if (ball >= 0 && game.occ[ball] === game.current) {
+      const again = ball === selected;
+      select(ball);
+      drag = { cell: ball, x: p.x, y: p.y, sx: p.x, sy: p.y, moved: false, again };
+    } else if (c >= 0 && game.occ[c] === game.current) {
       const again = c === selected;
       select(c);
       drag = { cell: c, x: p.x, y: p.y, sx: p.x, sy: p.y, moved: false, again };
       canvas.setPointerCapture(e.pointerId);
     } else if (selected >= 0 && c >= 0 && targets.includes(c)) {
       doMove(targetMoves.find(m => m.to === c));
+    } else if (selected >= 0 && c >= 0 && game.occ[c] < 0) {
+      toast('Ce pion ne peut pas aller là.');
     } else {
       clearSelection();
     }
@@ -428,6 +444,8 @@
     const p = localPoint(e), c = renderer.hitTest(p.x, p.y);
     if (!cancelled && d.moved && c >= 0 && targets && targets.includes(c)) {
       doMove(targetMoves.find(m => m.to === c));
+    } else if (!cancelled && d.moved && c >= 0 && c !== d.cell && game.occ[c] < 0) {
+      toast('Ce pion ne peut pas aller là.');
     } else if (!d.moved && d.again) {
       clearSelection();
     }
@@ -464,9 +482,11 @@
     } else {
       const p = game.players[game.current];
       dot.style.background = PIECE_COLORS[colors[game.current]].base;
-      $('turnName').textContent = p.type === 'ai'
+      const turn = config.showTurns !== false ? ` · tour ${game.turnsOf(game.current) + 1}` : '';
+      const solo = game.solo >= 0 ? ' (seul)' : '';
+      $('turnName').textContent = (p.type === 'ai'
         ? `${p.name} réfléchit…`
-        : `À ${p.name} de jouer`;
+        : `À ${p.name} de jouer`) + solo + turn;
     }
     $('btnUndo').disabled = !game.history.some(h => game.players[h.pi].type === 'human');
   }
@@ -490,9 +510,29 @@
       dot.className = 'dot';
       dot.style.background = PIECE_COLORS[colors[pi]].base;
       li.append(dot, document.createTextNode(playerLabel(pi)));
+      const notes = [];
+      if (config.showTurns !== false) notes.push(`${game.turnsOf(pi)} tours`);
+      if (pi === game.solo) notes.push('fini seul');
+      else if (!game.hasWon(pi)) notes.push('pas fini');
+      if (notes.length) {
+        const span = document.createElement('span');
+        span.className = 'turns';
+        span.textContent = ' — ' + notes.join(', ');
+        li.append(span);
+      }
       list.append(li);
     });
     $('endTitle').textContent = `${game.players[game.ranking[0]].name} gagne !`;
+    const solo = game.canFinishSolo();
+    $('btnSolo').hidden = !solo;
+    $('soloHint').hidden = !solo;
+    if (solo) {
+      const last = game.ranking[game.ranking.length - 1];
+      $('btnSolo').textContent = game.players[last].type === 'human'
+        ? `Finir seul (${game.players[last].name})`
+        : `Laisser ${game.players[last].name} finir`;
+      $('soloHint').textContent = `${game.players[last].name} peut finir de ranger ses pions tout seul.`;
+    }
     $('endgame').hidden = false;
   }
 
@@ -542,7 +582,8 @@
       seats.append(row);
     });
     $('speed').value = String(draft.speed);
-    $('showMoves').checked = draft.showMoves;
+    $('showMoves').value = movesMode(draft);
+    $('showTurns').checked = draft.showTurns !== false;
     $('longJumps').checked = draft.longJumps !== false;
     $('autoRotate').checked = draft.autoRotate !== false;
   }
@@ -557,7 +598,8 @@
   $('btnStart').addEventListener('click', () => {
     Sound.unlock();
     draft.speed = parseFloat($('speed').value) || 1;
-    draft.showMoves = $('showMoves').checked;
+    draft.showMoves = $('showMoves').value;
+    draft.showTurns = $('showTurns').checked;
     draft.longJumps = $('longJumps').checked;
     draft.autoRotate = $('autoRotate').checked;
     draft.players.forEach((p, i) => {
@@ -577,6 +619,41 @@
   $('btnUndo').addEventListener('click', undo);
   $('btnRules').addEventListener('click', () => { $('rules').hidden = false; });
   $('btnReplay').addEventListener('click', () => { $('endgame').hidden = true; start(config); });
+  $('btnSolo').addEventListener('click', () => {
+    if (!game.finishSolo()) return;
+    $('endgame').hidden = true;
+    save();
+    clearSelection();
+    requestDraw();
+    nextTurn();
+  });
+
+  // ---------- Installation sur l'appareil (PWA) ----------
+  let installEvent = null;
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  $('btnInstall').hidden = standalone;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    installEvent = e;
+    $('btnInstall').hidden = false;
+  });
+  window.addEventListener('appinstalled', () => {
+    installEvent = null;
+    $('btnInstall').hidden = true;
+    toast('Le jeu est installé !');
+  });
+  $('btnInstall').addEventListener('click', () => {
+    if (installEvent) {
+      installEvent.prompt();
+      installEvent.userChoice.finally(() => { installEvent = null; });
+      return;
+    }
+    $('installIos').hidden = !isIOS;
+    $('installOther').hidden = isIOS;
+    $('install').hidden = false;
+  });
   $('btnSound').addEventListener('click', () => {
     Sound.on = !Sound.on;
     store.set('cc-sound', Sound.on);

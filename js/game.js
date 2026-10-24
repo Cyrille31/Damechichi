@@ -155,6 +155,32 @@
       this.ranking = [];
       this.history = [];
       this.over = false;
+      this.solo = -1;       // joueur qui finit seul après la fin de la partie
+      this.soloStart = -1;  // longueur de l'historique au début de ce « finir seul »
+    }
+
+    /** Nombre de tours joués par un joueur. */
+    turnsOf(pi) {
+      let n = 0;
+      for (const h of this.history) if (h.pi === pi) n++;
+      return n;
+    }
+
+    /** Après la fin, le dernier joueur peut-il encore ranger ses pions tout seul ? */
+    canFinishSolo() {
+      if (!this.over || this.solo >= 0) return false;
+      const last = this.ranking[this.ranking.length - 1];
+      return last !== undefined && !this.hasWon(last) && this.legalMoves(last).length > 0;
+    }
+
+    finishSolo() {
+      if (!this.canFinishSolo()) return false;
+      this.solo = this.ranking.pop();
+      this.soloStart = this.history.length;
+      this._syncFinished();
+      this.current = this.solo;
+      this.over = false;
+      return true;
     }
 
     piecesOf(pi) {
@@ -234,7 +260,14 @@
         finished = pi;
       }
       this._syncFinished();
-      if (this.activeCount() <= 1) {
+      if (this.solo >= 0) {
+        // Seul en jeu : on continue jusqu'à l'arrivée (ou jusqu'au blocage complet).
+        if (finished === null && !this.legalMoves(pi).length) {
+          this.ranking.push(pi);
+          this._syncFinished();
+        }
+        this.over = this.players[pi].finished > 0;
+      } else if (this.activeCount() <= 1) {
         const last = this.players.findIndex(p => !p.finished);
         if (last >= 0) this.ranking.push(last);
         this._syncFinished();
@@ -274,6 +307,10 @@
       if (!h.pass) {
         this.occ[h.from] = h.pi;
         this.occ[h.to] = -1;
+      }
+      if (this.solo >= 0 && this.history.length < this.soloStart) {
+        this.solo = -1;
+        this.soloStart = -1;
       }
       this.ranking.length = h.rankingLen;
       this._syncFinished();

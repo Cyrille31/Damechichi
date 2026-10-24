@@ -27,6 +27,7 @@
     <div id="turn" aria-live="polite"><span class="dot"></span><span id="turnName"></span></div>
     <nav class="actions">
       <button id="btnUndo" title="Annuler le dernier coup" aria-label="Annuler">↶</button>
+      <button id="btnInstall" title="Installer le jeu" aria-label="Installer le jeu" hidden>📲</button>
       <button id="btnSound" title="Son" aria-label="Son">🔊</button>
       <button id="btnRules" title="Règles" aria-label="Règles">?</button>
       <button id="btnMenu" title="Nouvelle partie" aria-label="Nouvelle partie">☰</button>
@@ -58,8 +59,16 @@
         </select>
       </div>
       <div class="field row">
-        <label for="showMoves" class="label">Montrer les coups possibles</label>
-        <input type="checkbox" id="showMoves" checked>
+        <label for="showMoves" class="label">Cases d'arrivée possibles</label>
+        <select id="showMoves">
+          <option value="always">Toujours montrées</option>
+          <option value="drag">En faisant glisser</option>
+          <option value="never">Jamais montrées</option>
+        </select>
+      </div>
+      <div class="field row">
+        <label for="showTurns" class="label">Afficher le nombre de tours</label>
+        <input type="checkbox" id="showTurns" checked>
       </div>
       <div class="field row">
         <label for="longJumps" class="label">Mode Bonne-Maman<small>Sauter par-dessus les cases vides</small></label>
@@ -90,6 +99,8 @@
       <p><b>Triangles des autres :</b> un pion peut traverser les triangles des autres joueurs pendant ses sauts, mais il ne peut pas s'y arrêter. Il ne s'arrête qu'au centre, dans son triangle de départ ou dans son triangle d'arrivée.</p>
       <p><b>Anti-blocage :</b> si votre pointe d'arrivée est pleine et que les pions adverses qui y restent (3 au plus) ne peuvent plus bouger, vous gagnez quand même : ils échangent leur place avec vos pions restés dehors.</p>
       <p class="hint">Touchez (ou cliquez) un de vos pions, puis un trou en surbrillance. Vous pouvez aussi faire glisser le pion. Survolez un trou pour voir le chemin des sauts.</p>
+      <p><b>Finir seul :</b> quand la partie s'arrête avant que le dernier joueur ait rangé tous ses pions, il peut continuer seul jusqu'au bout (bouton « Finir seul » de l'écran de fin ; touchez le plateau pour revoir cet écran).</p>
+      <p class="hint">Installer le jeu sur le téléphone ou l'ordinateur : bouton 📲 en haut de l'écran.</p>
       <p class="hint">Pour incliner le plateau, faites glisser deux doigts vers le haut ou vers le bas (sur PC : la molette de la souris).</p>
       <div class="about">
         <img class="logo" src="icons/logo.svg" alt="Dames chinoises">
@@ -106,10 +117,23 @@
     <div class="panel">
       <h2 id="endTitle">Partie terminée</h2>
       <ol id="ranking"></ol>
-      <div class="buttons">
+      <p id="soloHint" class="hint" hidden>Vous pouvez finir de ranger vos pions tout seul.</p>
+      <div class="buttons wrap">
         <button class="secondary" data-close>Voir le plateau</button>
+        <button id="btnSolo" class="secondary" hidden>Finir seul</button>
         <button id="btnReplay" class="primary">Rejouer</button>
       </div>
+    </div>
+  </div>
+
+  <div id="install" class="modal" hidden>
+    <div class="panel">
+      <img class="logo" src="icons/logo.svg" alt="Dames chinoises">
+      <h2>Installer le jeu</h2>
+      <p id="installIos" hidden>Sur iPhone ou iPad, dans <b>Safari</b> : touchez le bouton <b>Partager</b> (le carré avec une flèche vers le haut), puis <b>« Sur l'écran d'accueil »</b>.</p>
+      <p id="installOther">Ouvrez le menu du navigateur (<b>⋮</b> ou <b>…</b>), puis choisissez <b>« Installer l'application »</b> ou <b>« Ajouter à l'écran d'accueil »</b>.</p>
+      <p class="hint">Le jeu s'installe alors comme une application : il s'ouvre en plein écran et fonctionne sans connexion. L'installation n'est possible que si le jeu est ouvert depuis une adresse https:// (par exemple GitHub Pages).</p>
+      <div class="buttons"><button class="primary" data-close>Compris</button></div>
     </div>
   </div>
 
