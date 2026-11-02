@@ -23,9 +23,13 @@ comme une application (PWA, fonctionne hors ligne).
 - **Bouton 📲 Installer** : installe le jeu sur le smartphone ou le PC
   (instructions affichées sur iPhone/iPad, où l'installation passe par
   Safari → Partager → « Sur l'écran d'accueil »).
+- **Revoir la partie** : toute la partie est rejouée en accéléré depuis le
+  début (×2 à ×16), puis on reprend là où on en était.
+- **Billes toutes différentes** : chaque bille a ses propres stries et pivote
+  un peu à chaque déplacement ; elle ne retombe jamais tout à fait pareil.
 - **Plateau inclinable** : glisser deux doigts vers le haut ou le bas (molette
-  de la souris sur PC) pour incliner le plateau en perspective ; on touche
-  alors directement la boule pour la prendre.
+  de la souris sur PC) pour incliner le plateau en perspective ; les billes
+  restent rondes et on les touche directement pour les prendre.
 - **Déplacements animés** : on voit le pion sauter de trou en trou, avec un
   petit « toc » de bois à chaque atterrissage. Le dernier coup reste tracé et,
   en survolant un trou, on voit le chemin des sauts.

@@ -114,9 +114,12 @@
   }
 
   class Renderer {
-    constructor(canvas) {
+    constructor(canvas, overlay) {
       this.canvas = canvas;
       this.ctx = canvas.getContext('2d');
+      // Les billes sont dessinées sur un calque non incliné, pour rester rondes.
+      this.overlay = overlay;
+      this.octx = overlay.getContext('2d');
       this.angle = 0;   // rotation du plateau (radians, sens de canvas.rotate)
       this.tilt = 0;    // inclinaison du plateau (radians), appliquée en CSS 3D
       this.armColors = [null, null, null, null, null, null];
@@ -153,12 +156,15 @@
       this.h = Math.max(1, rect.height);
       this.canvas.width = Math.round(this.w * this.dpr);
       this.canvas.height = Math.round(this.h * this.dpr);
+      this.overlay.width = this.canvas.width;
+      this.overlay.height = this.canvas.height;
       this.layout();
     }
 
     layout() {
-      // Largeur réelle du cadre : demi-largeur de l'hexagone moins l'arrondi des coins (≈ 0,3 u).
-      this.u = Math.min(this.w / 2 / (FRAME_R * 0.866 - 0.25), this.h / 2 / (FRAME_R + 0.4));
+      // Le cadre fait presque toute la demi-largeur de l'hexagone (≈ 12,97 u) :
+      // on garde une marge de 0,3 u (4 à 5 px sur un téléphone) de chaque côté.
+      this.u = Math.min(this.w / 2 / (FRAME_R * 0.866 + 0.3), this.h / 2 / (FRAME_R + 0.4));
       this.cx = this.w / 2;
       this.cy = this.h / 2;
       this.spacing = SQRT3 * this.u;
@@ -168,6 +174,7 @@
       this.buildHole();
       this.buildSprites();
       this.setAngle(this.angle);
+      this.setTilt(this.tilt);
     }
 
     /** Calque carré dessiné dans le repère du plateau (centre au milieu), qui tourne avec lui. */
@@ -334,69 +341,121 @@
       }
     }
 
+    /**
+     * Billes : chacune a ses propres stries (graine différente, angle, finesse,
+     * nuance). Le veinage est dans un calque qui tourne avec la bille ; la
+     * lumière (reflet, ombre propre) est un calque commun qui reste fixe.
+     */
     buildSprites() {
       const r = this.pieceR, pad = Math.ceil(r * 0.15) + 2;
       const S = Math.ceil((r * 2 + pad * 2) * this.dpr);
       this.spriteSize = S / this.dpr;
-      this.sprites = PIECE_COLORS.map((pc, ci) => {
+      const m = S / this.dpr / 2;
+      const make = () => {
         const c = document.createElement('canvas');
         c.width = c.height = S;
         const ctx = c.getContext('2d');
         ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-        const m = S / this.dpr / 2;
-        ctx.save();
+        return [c, ctx];
+      };
+
+      this.ballSprites = [];
+      for (let id = 0; id < 60; id++) {
+        const pc = PIECE_COLORS[Math.floor(id / 10)];
+        const rng = mulberry32(1000 + id * 37);
+        const tint = shade(pc.base, (rng() - 0.5) * 0.16);
+        const [c, ctx] = make();
         ctx.beginPath();
         ctx.arc(m, m, r, 0, Math.PI * 2);
         ctx.clip();
-        const g = ctx.createRadialGradient(m - r * 0.35, m - r * 0.4, r * 0.1, m, m, r * 1.05);
-        g.addColorStop(0, shade(pc.base, 0.35));
-        g.addColorStop(0.55, pc.base);
-        g.addColorStop(1, shade(pc.base, -0.5));
-        ctx.fillStyle = g;
+        ctx.fillStyle = tint;
         ctx.fillRect(0, 0, m * 2, m * 2);
         drawGrain(ctx, m, m, r * 2.2, {
-          seed: 100 + ci * 17, angle: 0.6 + ci, spacing: r * 0.16, lineScale: Math.max(0.5, r / 16),
-          base: null, line: pc.grain, knots: 0
+          seed: 5000 + id * 131, angle: rng() * Math.PI, spacing: r * (0.11 + rng() * 0.12),
+          lineScale: Math.max(0.5, r / 16) * (0.8 + rng() * 0.5),
+          base: null, line: pc.grain, knots: rng() < 0.3 ? 1 : 0
         });
-        const hl = ctx.createRadialGradient(m - r * 0.38, m - r * 0.45, 0, m - r * 0.3, m - r * 0.35, r * 0.75);
-        hl.addColorStop(0, 'rgba(255,255,255,0.55)');
-        hl.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = hl;
-        ctx.fillRect(0, 0, m * 2, m * 2);
-        const sh = ctx.createRadialGradient(m - r * 0.2, m - r * 0.25, r * 0.6, m, m, r * 1.05);
-        sh.addColorStop(0, 'rgba(0,0,0,0)');
-        sh.addColorStop(1, 'rgba(0,0,0,0.38)');
-        ctx.fillStyle = sh;
-        ctx.fillRect(0, 0, m * 2, m * 2);
-        ctx.restore();
-        ctx.beginPath();
-        ctx.arc(m, m, r - 0.5, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        return c;
-      });
+        this.ballSprites.push(c);
+      }
+
+      const [light, ctx] = make();
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(m, m, r, 0, Math.PI * 2);
+      ctx.clip();
+      const g = ctx.createRadialGradient(m - r * 0.35, m - r * 0.4, r * 0.1, m, m, r * 1.05);
+      g.addColorStop(0, 'rgba(255,255,255,0.22)');
+      g.addColorStop(0.5, 'rgba(255,255,255,0)');
+      g.addColorStop(0.8, 'rgba(0,0,0,0.18)');
+      g.addColorStop(1, 'rgba(0,0,0,0.55)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, m * 2, m * 2);
+      const hl = ctx.createRadialGradient(m - r * 0.38, m - r * 0.45, 0, m - r * 0.3, m - r * 0.35, r * 0.75);
+      hl.addColorStop(0, 'rgba(255,255,255,0.55)');
+      hl.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = hl;
+      ctx.fillRect(0, 0, m * 2, m * 2);
+      ctx.restore();
+      ctx.beginPath();
+      ctx.arc(m, m, r - 0.5, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      this.lightSprite = light;
+    }
+
+    /** Inclinaison du plateau : perspective P et réduction k qui le gardent dans l'écran. */
+    setTilt(phi) {
+      this.tilt = phi;
+      this.P = Math.max(this.w, this.h) * 1.6;
+      this.k = (this.P - 7.5 * this.u * Math.sin(phi)) / this.P;
     }
 
     /**
-     * Case sous le point (px, py). Avec `occ`, on cherche d'abord une boule
-     * telle qu'elle est dessinée (relevée et étirée quand le plateau est
-     * incliné), la plus en avant si plusieurs se recouvrent ; sinon le trou.
+     * Projette un point du plateau (x, y), à la hauteur `z` au-dessus de lui,
+     * sur l'écran — comme le fait la transformation CSS 3D du plateau.
      */
-    hitTest(px, py, occ) {
-      if (occ) {
-        const up = this.pieceR * Math.tan(this.tilt) * 0.8, stretch = 1 / Math.cos(this.tilt);
-        let ball = -1, front = -Infinity;
-        for (let i = 0; i < N; i++) {
-          if (occ[i] < 0) continue;
-          const dx = px - this.pos[i].x, dy = (py - (this.pos[i].y - up)) / stretch;
-          if (dx * dx + dy * dy <= this.pieceR * this.pieceR && this.pos[i].y > front) {
-            front = this.pos[i].y;
-            ball = i;
-          }
+    project(x, y, z) {
+      const X = x - this.w / 2, Y = y - this.h / 2, phi = this.tilt;
+      if (!phi) return { x, y, s: 1, depth: Y + z };
+      const cs = Math.cos(phi), sn = Math.sin(phi);
+      const yr = Y * cs - z * sn, zr = Y * sn + z * cs;
+      const f = this.k * this.P / (this.P - zr);
+      return { x: this.w / 2 + X * f, y: this.h / 2 + yr * f, s: f, depth: zr };
+    }
+
+    /** Point du plateau sous un point de l'écran (inverse de project pour z = 0). */
+    unproject(sx, sy) {
+      const X = sx - this.w / 2, Y = sy - this.h / 2, phi = this.tilt;
+      if (!phi) return { x: sx, y: sy };
+      const { P, k } = this;
+      const y = Y * P / (k * P * Math.cos(phi) + Y * Math.sin(phi));
+      const x = X * (P - y * Math.sin(phi)) / (k * P);
+      return { x: x + this.w / 2, y: y + this.h / 2 };
+    }
+
+    /** Hauteur du centre d'une bille posée dans son trou. */
+    get restHeight() {
+      return this.tilt ? this.pieceR * 0.55 : 0;
+    }
+
+    /** Bille sous un point de l'écran (la plus en avant), ou -1. */
+    ballAt(sx, sy, occ) {
+      let best = -1, front = -Infinity;
+      for (let i = 0; i < N; i++) {
+        if (occ[i] < 0) continue;
+        const p = this.project(this.pos[i].x, this.pos[i].y, this.restHeight);
+        const dx = sx - p.x, dy = sy - p.y, r = this.pieceR * p.s;
+        if (dx * dx + dy * dy <= r * r && p.depth > front) {
+          front = p.depth;
+          best = i;
         }
-        if (ball >= 0) return ball;
       }
+      return best;
+    }
+
+    /** Trou le plus proche d'un point du plateau (coordonnées du plateau), ou -1. */
+    hitTest(px, py) {
       let best = -1, bd = Infinity;
       for (let i = 0; i < N; i++) {
         const dx = this.pos[i].x - px, dy = this.pos[i].y - py, d = dx * dx + dy * dy;
@@ -417,15 +476,15 @@
       ctx.fill();
     }
 
-    /**
-     * Pion posé sur le plateau. Quand le plateau est incliné, on l'étire
-     * verticalement et on le remonte un peu pour qu'il reste bien rond à l'écran.
-     */
-    drawPiece(ctx, color, x, y, scale = 1) {
+    /** Bille ronde à l'écran : veinage tourné de `spin`, lumière fixe. */
+    drawBall(ctx, id, sx, sy, scale, spin) {
       const s = this.spriteSize * scale;
-      const stretch = 1 / Math.cos(this.tilt);
-      const up = this.pieceR * scale * Math.tan(this.tilt) * 0.8;
-      ctx.drawImage(this.sprites[color], x - s / 2, y - up - s * stretch / 2, s, s * stretch);
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(spin);
+      ctx.drawImage(this.ballSprites[id], -s / 2, -s / 2, s, s);
+      ctx.restore();
+      ctx.drawImage(this.lightSprite, sx - s / 2, sy - s / 2, s, s);
     }
 
     drawPath(ctx, path, color, alpha, dash) {
@@ -455,7 +514,8 @@
 
     /**
      * @param {object} v vue : occ, colors (couleur par joueur), hidden (Set de cases),
-     *   movers [{color, x, y, lift}], selected, targets, hoverPath, lastMove, time
+     *   ids (numéro de bille par case), spins (orientation par bille),
+     *   movers [{id, spin, x, y, lift}], selected, targets, hoverPath, lastMove, time
      */
     draw(v) {
       const ctx = this.ctx;
@@ -483,28 +543,36 @@
         }
       }
 
-      const pieces = [];
+      // Ombres sur le plateau (incliné avec lui) ; billes sur le calque du dessus.
+      const balls = [];
       for (let i = 0; i < N; i++) {
-        if (v.occ[i] >= 0 && !(v.hidden && v.hidden.has(i))) pieces.push(i);
+        if (v.occ[i] < 0 || (v.hidden && v.hidden.has(i))) continue;
+        this.drawShadow(ctx, this.pos[i].x, this.pos[i].y, 0);
+        const p = this.project(this.pos[i].x, this.pos[i].y, this.restHeight);
+        balls.push({ id: v.ids[i], p, spin: v.spins[v.ids[i]], selected: i === v.selected });
       }
-      // Plateau incliné : on dessine du fond vers l'avant pour que les pions se recouvrent bien.
-      pieces.sort((a, b) => this.pos[a].y - this.pos[b].y);
-      for (const i of pieces) this.drawShadow(ctx, this.pos[i].x, this.pos[i].y, 0);
-      for (const i of pieces) this.drawPiece(ctx, v.colors[v.occ[i]], this.pos[i].x, this.pos[i].y);
-
-      if (v.selected >= 0 && v.selected !== undefined && !(v.hidden && v.hidden.has(v.selected))) {
-        const p = this.pos[v.selected];
-        const up = this.pieceR * Math.tan(this.tilt) * 0.8;
-        ctx.beginPath();
-        ctx.ellipse(p.x, p.y - up, this.pieceR * 1.12, this.pieceR * 1.12 / Math.cos(this.tilt), 0, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(255,220,120,${0.6 + 0.4 * pulse})`;
-        ctx.lineWidth = Math.max(2, this.u * 0.2);
-        ctx.stroke();
+      for (const m of v.movers || []) {
+        this.drawShadow(ctx, m.x, m.y, m.lift);
+        const p = this.project(m.x, m.y, this.restHeight + m.lift);
+        // À plat, la bille qui saute grossit un peu pour donner l'impression de hauteur.
+        if (!this.tilt) { p.y -= m.lift; p.s *= 1 + m.lift / (this.spacing * 4); p.depth += m.lift; }
+        balls.push({ id: m.id, p, spin: m.spin, mover: true });
       }
 
-      if (v.movers) {
-        for (const m of v.movers) this.drawShadow(ctx, m.x, m.y, m.lift);
-        for (const m of v.movers) this.drawPiece(ctx, m.color, m.x, m.y - m.lift, 1 + m.lift / (this.spacing * 4));
+      const o = this.octx;
+      o.setTransform(1, 0, 0, 1, 0, 0);
+      o.clearRect(0, 0, this.overlay.width, this.overlay.height);
+      o.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      balls.sort((a, b) => a.p.depth - b.p.depth);
+      for (const b of balls) {
+        this.drawBall(o, b.id, b.p.x, b.p.y, b.p.s, b.spin);
+        if (b.selected) {
+          o.beginPath();
+          o.arc(b.p.x, b.p.y, this.pieceR * b.p.s * 1.12, 0, Math.PI * 2);
+          o.strokeStyle = `rgba(255,220,120,${0.6 + 0.4 * pulse})`;
+          o.lineWidth = Math.max(2, this.u * 0.2);
+          o.stroke();
+        }
       }
     }
   }

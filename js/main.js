@@ -69,7 +69,7 @@
 
   // ---------- État ----------
   const canvas = $('board');
-  const renderer = new Renderer(canvas);
+  const renderer = new Renderer(canvas, $('balls'));
   let config = store.get('cc-settings') || defaultConfig(2);
   let game = null;
   let colors = [];
@@ -77,6 +77,11 @@
   let drag = null, hoverCell = -1;
   let job = null;          // animation en cours
   let displayOcc = null;   // occupation affichée pendant une animation
+  let displayIds = null;   // numéros des billes affichés pendant une animation
+  let watch = null;        // « revoir la partie » en cours
+  // Orientation de chaque bille : elle pivote un peu à chaque déplacement.
+  const spins = new Float64Array(60).map(() => Math.random() * Math.PI * 2);
+  const animSpeed = () => config.speed * (watch ? watch.speed : 1);
   let aiTimer = null;
   let lastMove = null;
   let raf = 0;
@@ -99,14 +104,20 @@
   const movesMode = (cfg = config) => (cfg.showMoves === true || cfg.showMoves === undefined ? 'always'
     : cfg.showMoves === false ? 'drag' : cfg.showMoves);
 
-  const isHumanTurn = () => game && !game.over && !job && !spin && game.players[game.current].type === 'human';
+  const isHumanTurn = () => game && !watch && !game.over && !job && !spin && game.players[game.current].type === 'human';
   const playerLabel = pi => `${game.players[pi].name} (${PIECE_COLORS[colors[pi]].name})`;
 
   // ---------- Démarrage ----------
   function start(cfg, replay) {
     clearTimeout(aiTimer);
+    if (watch) {
+      clearTimeout(watch.timer);
+      watch = null;
+      $('replayBar').hidden = true;
+    }
     job = null;
     displayOcc = null;
+    displayIds = null;
     config = cfg;
     store.set('cc-settings', cfg);
     game = new Game({ players: cfg.players, longJumps: cfg.longJumps !== false });
@@ -135,7 +146,7 @@
   }
 
   function save() {
-    if (!game) return;
+    if (!game || watch) return;
     store.set('cc-game', {
       config,
       moves: game.history.map(h => (h.pass ? { pass: true } : { from: h.from, to: h.to, path: h.path })),
@@ -157,6 +168,7 @@
 
   // ---------- Tours ----------
   function nextTurn() {
+    if (watch) return;
     updateHud();
     if (game.over) { showEnd(); return; }
     const pi = game.current, p = game.players[pi];
@@ -171,30 +183,43 @@
         if (!$('setup').hidden) { nextTurn(); return; }
         const m = AI.chooseMove(game, pi, p.level);
         if (m) doMove(m); else { game.pass(); nextTurn(); }
-      }, 380 / config.speed);
+      }, 380 / animSpeed());
     }
   }
 
-  function doMove(move) {
+  /** Joue un coup et l'anime ; `after(res)` est appelé à la fin de l'animation. */
+  function playAnimated(move, after) {
     const pi = game.current;
     clearSelection();
     const res = game.play(move);
     lastMove = game.history[game.history.length - 1];
-    save();
     displayOcc = game.occ.slice();
-    if (res.swaps) for (const s of res.swaps) { displayOcc[s.a] = s.owner; displayOcc[s.b] = pi; }
+    displayIds = game.ids.slice();
+    if (res.swaps) {
+      for (const s of res.swaps) {
+        displayOcc[s.a] = s.owner;
+        displayOcc[s.b] = pi;
+        [displayIds[s.a], displayIds[s.b]] = [displayIds[s.b], displayIds[s.a]];
+      }
+    }
     animateMove(move, pi, () => {
       if (res.swaps) {
-        toast('Anti-blocage : échange des pions coincés.');
-        animateSwaps(res.swaps, pi, () => afterMove(res));
+        if (!watch) toast('Anti-blocage : échange des pions coincés.');
+        animateSwaps(res.swaps, pi, () => after(res));
       } else {
-        afterMove(res);
+        after(res);
       }
     });
   }
 
+  function doMove(move) {
+    playAnimated(move, afterMove);
+    save();
+  }
+
   function afterMove(res) {
     displayOcc = null;
+    displayIds = null;
     if (res.finished !== null && !res.over) {
       const rank = game.players[res.finished].finished;
       toast(`🏆 ${playerLabel(res.finished)} termine ${rank === 1 ? '1er' : rank + 'e'} !`);
@@ -204,7 +229,7 @@
   }
 
   function undo() {
-    if (!game || job || !game.history.length) return;
+    if (!game || watch || job || !game.history.length) return;
     if (!game.history.some(h => game.players[h.pi].type === 'human')) return;
     clearTimeout(aiTimer);
     $('endgame').hidden = true;
@@ -218,6 +243,73 @@
     save();
     requestDraw();
     nextTurn();
+  }
+
+  // ---------- Revoir la partie en accéléré ----------
+  function startWatch() {
+    if (!game || watch || job || spin || !game.history.length) return;
+    clearTimeout(aiTimer);
+    $('endgame').hidden = true;
+    $('setup').hidden = true;
+    watch = {
+      real: game,
+      realLast: lastMove,
+      moves: game.history.map(h => (h.pass ? { pass: true } : { from: h.from, to: h.to, path: h.path })),
+      soloAt: game.soloStart,
+      i: 0,
+      speed: 4,
+      timer: 0
+    };
+    game = new Game({ players: config.players, longJumps: config.longJumps !== false });
+    lastMove = null;
+    clearSelection();
+    $('replayBar').hidden = false;
+    $('btnReplaySpeed').textContent = '×' + watch.speed;
+    updateWatchBar();
+    updateHud();
+    requestDraw();
+    watch.timer = setTimeout(watchStep, 600);
+  }
+
+  function updateWatchBar() {
+    $('replayInfo').textContent = `Film : coup ${watch.i} / ${watch.moves.length}`;
+  }
+
+  function watchStep() {
+    if (!watch) return;
+    if (watch.i === watch.soloAt) game.finishSolo();
+    if (watch.i >= watch.moves.length) {
+      watch.timer = setTimeout(stopWatch, 1500);
+      return;
+    }
+    const m = watch.moves[watch.i++];
+    updateWatchBar();
+    if (m.pass) {
+      game.pass();
+      watch.timer = setTimeout(watchStep, 150 / animSpeed());
+      return;
+    }
+    playAnimated(m, () => {
+      displayOcc = null;
+      displayIds = null;
+      if (watch) watch.timer = setTimeout(watchStep, 120 / animSpeed());
+    });
+  }
+
+  function stopWatch() {
+    if (!watch) return;
+    clearTimeout(watch.timer);
+    const w = watch;
+    watch = null;
+    job = null;
+    displayOcc = null;
+    displayIds = null;
+    game = w.real;
+    lastMove = w.realLast;
+    $('replayBar').hidden = true;
+    clearSelection();
+    requestDraw();
+    if (game.over) showEnd(); else nextTurn();
   }
 
   // ---------- Animation ----------
@@ -241,17 +333,10 @@
     }
   }
 
-  /** Perspective P et réduction k qui gardent le plateau incliné dans l'écran. */
-  function tiltParams() {
-    const phi = renderer.tilt, P = Math.max(renderer.w, renderer.h) * 1.6;
-    const yb = 7.5 * renderer.u;  // hauteur des coins latéraux du cadre
-    return { phi, P, k: (P - yb * Math.sin(phi)) / P };
-  }
-
   function applyTilt() {
     tilt = Math.max(0, Math.min(50, tilt));
-    renderer.tilt = tilt * Math.PI / 180;
-    const { P, k } = tiltParams();
+    renderer.setTilt(tilt * Math.PI / 180);
+    const { P, k } = renderer;
     canvas.style.transform = tilt ? `perspective(${P}px) scale(${k}) rotateX(${tilt}deg)` : '';
     store.set('cc-tilt', Math.round(tilt));
     requestDraw();
@@ -264,22 +349,30 @@
       const a = move.path[k - 1], b = move.path[k];
       const len = window.CC.dist(a, b);
       const jump = len > 1 || move.jump;
-      const dur = (jump ? 200 + 55 * len : 230) / config.speed;
+      const dur = (jump ? 200 + 55 * len : 230) / animSpeed();
       segs.push({ a, b, start: t, dur, height: jump ? Math.min(sp * 2.2, sp * (0.45 + 0.22 * len)) : sp * 0.12 });
-      t += dur + 40 / config.speed;
+      t += dur + 40 / animSpeed();
     }
-    runJob([{ color: colors[pi], segs }], [move.to], t, onDone, pi);
+    runJob([mover(game.ids[move.to], segs)], [move.to], t, onDone, pi);
+  }
+
+  /** Bille en mouvement : elle pivote un peu à chaque saut et retombe un peu tournée. */
+  function mover(id, segs) {
+    let turn = 0;
+    for (let k = 0; k < segs.length; k++) turn += (Math.random() < 0.5 ? -1 : 1) * (0.25 + Math.random() * 0.6);
+    return { id, segs, a0: spins[id], a1: spins[id] + turn };
   }
 
   function animateSwaps(swaps, pi, onDone) {
-    const dur = 750 / config.speed, sp = renderer.spacing;
+    const dur = 750 / animSpeed(), sp = renderer.spacing;
     const movers = [], hidden = [];
     for (const s of swaps) {
-      movers.push({ color: colors[pi], segs: [{ a: s.b, b: s.a, start: 0, dur, height: sp * 2 }] });
-      movers.push({ color: colors[s.owner], segs: [{ a: s.a, b: s.b, start: 0, dur, height: sp * 2.6 }] });
+      movers.push(mover(game.ids[s.a], [{ a: s.b, b: s.a, start: 0, dur, height: sp * 2 }]));
+      movers.push(mover(game.ids[s.b], [{ a: s.a, b: s.b, start: 0, dur, height: sp * 2.6 }]));
       hidden.push(s.a, s.b);
     }
     displayOcc = null;
+    displayIds = null;
     runJob(movers, hidden, dur, onDone, pi);
   }
 
@@ -307,9 +400,11 @@
         }
       });
       const A = renderer.pos[seg.a], B = renderer.pos[seg.b], e = ease(local);
-      out.push({ color: m.color, x: A.x + (B.x - A.x) * e, y: A.y + (B.y - A.y) * e, lift: seg.height * Math.sin(Math.PI * local) });
+      const spin = m.a0 + (m.a1 - m.a0) * ease(Math.min(1, t / job.total));
+      out.push({ id: m.id, spin, x: A.x + (B.x - A.x) * e, y: A.y + (B.y - A.y) * e, lift: seg.height * Math.sin(Math.PI * local) });
     });
     if (t >= job.total) {
+      for (const m of job.movers) spins[m.id] = m.a1;
       const done = job.onDone;
       job = null;
       done();
@@ -331,7 +426,8 @@
     const hidden = job ? new Set(job.hidden) : new Set();
     if (drag && drag.moved) {
       hidden.add(drag.cell);
-      movers = [{ color: colors[game.current], x: drag.x, y: drag.y, lift: renderer.spacing * 0.25 }];
+      const id = game.ids[drag.cell];
+      movers = [{ id, spin: spins[id], x: drag.x, y: drag.y, lift: renderer.spacing * 0.25 }];
     }
     const mode = movesMode();
     let hoverPath = null;
@@ -341,6 +437,8 @@
     }
     renderer.draw({
       occ: job && displayOcc ? displayOcc : game.occ,
+      ids: job && displayIds ? displayIds : game.ids,
+      spins,
       colors,
       hidden,
       movers,
@@ -369,13 +467,16 @@
   }
 
   /** Point du plateau sous le doigt, en tenant compte de l'inclinaison (CSS 3D). */
-  function localPoint(e) {
+  /** Point de l'écran (dans la zone de jeu) sous le doigt. */
+  function screenPoint(e) {
     const r = $('stage').getBoundingClientRect();
-    const X = e.clientX - r.left - r.width / 2, Y = e.clientY - r.top - r.height / 2;
-    const { phi, P, k } = tiltParams();
-    const y = phi ? Y * P / (k * P * Math.cos(phi) + Y * Math.sin(phi)) : Y;
-    const x = phi ? X * (P - y * Math.sin(phi)) / (k * P) : X;
-    return { x: x + renderer.w / 2, y: y + renderer.h / 2 };
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  /** Point du plateau sous le doigt, en tenant compte de l'inclinaison (CSS 3D). */
+  function localPoint(e) {
+    const sp = screenPoint(e);
+    return renderer.unproject(sp.x, sp.y);
   }
 
   const midY = () => {
@@ -395,10 +496,10 @@
       requestDraw();
       return;
     }
-    if (game && game.over && !gesture && $('endgame').hidden) { showEnd(); return; }
+    if (game && game.over && !watch && !gesture && $('endgame').hidden) { showEnd(); return; }
     if (gesture || !isHumanTurn()) return;
-    const p = localPoint(e);
-    const ball = renderer.hitTest(p.x, p.y, game.occ), c = renderer.hitTest(p.x, p.y);
+    const p = localPoint(e), sp = screenPoint(e);
+    const ball = renderer.ballAt(sp.x, sp.y, game.occ), c = renderer.hitTest(p.x, p.y);
     if (ball >= 0 && game.occ[ball] === game.current) {
       const again = ball === selected;
       select(ball);
@@ -541,6 +642,7 @@
 
   function openSetup() {
     draft = JSON.parse(JSON.stringify(config));
+    $('btnWatchSetup').hidden = !game || !game.history.length || !!watch;
     renderSetup();
     $('setup').hidden = false;
   }
@@ -619,6 +721,14 @@
   $('btnUndo').addEventListener('click', undo);
   $('btnRules').addEventListener('click', () => { $('rules').hidden = false; });
   $('btnReplay').addEventListener('click', () => { $('endgame').hidden = true; start(config); });
+  $('btnWatch').addEventListener('click', startWatch);
+  $('btnWatchSetup').addEventListener('click', startWatch);
+  $('btnReplayStop').addEventListener('click', stopWatch);
+  $('btnReplaySpeed').addEventListener('click', () => {
+    if (!watch) return;
+    watch.speed = watch.speed >= 16 ? 2 : watch.speed * 2;
+    $('btnReplaySpeed').textContent = '×' + watch.speed;
+  });
   $('btnSolo').addEventListener('click', () => {
     if (!game.finishSolo()) return;
     $('endgame').hidden = true;

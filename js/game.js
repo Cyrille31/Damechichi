@@ -150,7 +150,12 @@
         arm: seats[i], target: opposite(seats[i]), finished: 0
       }));
       this.occ = new Int8Array(N).fill(-1);
-      this.players.forEach((p, i) => BOARD.arms[p.arm].cells.forEach(c => { this.occ[c] = i; }));
+      // Chaque bille a son numéro (joueur × 10 + rang), qui la suit dans ses déplacements.
+      this.ids = new Int16Array(N).fill(-1);
+      this.players.forEach((p, i) => BOARD.arms[p.arm].cells.forEach((c, k) => {
+        this.occ[c] = i;
+        this.ids[c] = i * 10 + k;
+      }));
       this.current = 0;
       this.ranking = [];
       this.history = [];
@@ -248,8 +253,15 @@
         const b = outside[k], owner = this.occ[a];
         this.occ[a] = pi;
         this.occ[b] = owner;
+        this._swapIds(a, b);
         return { a, b, owner };
       });
+    }
+
+    _swapIds(a, b) {
+      const t = this.ids[a];
+      this.ids[a] = this.ids[b];
+      this.ids[b] = t;
     }
 
     _endTurn(pi, h) {
@@ -285,6 +297,8 @@
       this.history.push(h);
       this.occ[move.to] = pi;
       this.occ[move.from] = -1;
+      this.ids[move.to] = this.ids[move.from];
+      this.ids[move.from] = -1;
       return this._endTurn(pi, h);
     }
 
@@ -302,11 +316,14 @@
         for (const { a, b, owner } of h.swaps) {
           this.occ[a] = owner;
           this.occ[b] = h.pi;
+          this._swapIds(a, b);
         }
       }
       if (!h.pass) {
         this.occ[h.from] = h.pi;
         this.occ[h.to] = -1;
+        this.ids[h.from] = this.ids[h.to];
+        this.ids[h.to] = -1;
       }
       if (this.solo >= 0 && this.history.length < this.soloStart) {
         this.solo = -1;
