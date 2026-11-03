@@ -11,6 +11,7 @@
   const { Game, BOARD } = window.CC;
   const AI = window.CCAI;
   const { Renderer, PIECE_COLORS } = window.CCRender;
+  const RoomLight = window.CCLight;
 
   const $ = id => document.getElementById(id);
   const LEVEL_NAMES = { easy: 'facile', medium: 'moyen', hard: 'difficile' };
@@ -97,7 +98,7 @@
         ? { name: 'Joueur 1', type: 'human', level: 'medium' }
         : { name: 'Ordinateur ' + i, type: 'ai', level: 'medium' });
     }
-    return { players, speed: 1, showMoves: 'always', showTurns: true, longJumps: true, autoRotate: true };
+    return { players, speed: 1, showMoves: 'always', showTurns: true, longJumps: true, autoRotate: true, cameraLight: false };
   }
 
   /** Cases d'arrivée affichées : 'always', 'drag' (seulement en faisant glisser) ou 'never'. */
@@ -139,6 +140,7 @@
     const armColors = [null, null, null, null, null, null];
     game.players.forEach((p, i) => { armColors[p.arm] = colors[i]; });
     spin = null;
+    applyCamera();
     renderer.setView(viewer >= 0 ? game.players[viewer].arm : 0, armColors);
     save();
     requestDraw();
@@ -243,6 +245,52 @@
     save();
     requestDraw();
     nextTurn();
+  }
+
+  // ---------- Lumière de la pièce (caméra) ----------
+  let lightModel = null, lightText = '', lightToastAt = 0;
+
+  /** Nouvelle analyse de la caméra : on lisse un peu pour éviter que les ombres sautent. */
+  function onLightModel(model) {
+    if (!model) model = RoomLight.DEFAULT_LIGHTS;
+    if (lightModel && lightModel.lights.length === model.lights.length) {
+      const mix = (a, b) => a + (b - a) * 0.5;
+      model = {
+        ambient: mix(lightModel.ambient, model.ambient),
+        lights: model.lights.map((l, i) => {
+          const o = lightModel.lights[i];
+          const dx = mix(o.dx, l.dx), dy = mix(o.dy, l.dy), n = Math.hypot(dx, dy) || 1;
+          return Object.assign({}, l, { dx: dx / n, dy: dy / n, tan: mix(o.tan, l.tan), soft: mix(o.soft, l.soft), weight: mix(o.weight, l.weight) });
+        })
+      };
+    }
+    lightModel = model;
+    renderer.setLights(model);
+    requestDraw();
+    const text = RoomLight.describe(model);
+    if (text !== lightText && performance.now() - lightToastAt > 5000) {
+      lightText = text;
+      lightToastAt = performance.now();
+      toast('💡 ' + text.charAt(0).toUpperCase() + text.slice(1));
+    }
+  }
+
+  function applyCamera() {
+    if (config.cameraLight) {
+      RoomLight.Camera.start(onLightModel).catch(err => {
+        RoomLight.Camera.stop();
+        config.cameraLight = false;
+        store.set('cc-settings', config);
+        toast(err && err.name === 'NotAllowedError'
+          ? 'Caméra refusée : les ombres gardent la lumière par défaut.'
+          : (err && err.message) || 'Caméra indisponible.');
+      });
+    } else {
+      RoomLight.Camera.stop();
+      lightModel = null;
+      lightText = '';
+      renderer.setLights(RoomLight.DEFAULT_LIGHTS);
+    }
   }
 
   // ---------- Revoir la partie en accéléré ----------
@@ -688,6 +736,7 @@
     $('showTurns').checked = draft.showTurns !== false;
     $('longJumps').checked = draft.longJumps !== false;
     $('autoRotate').checked = draft.autoRotate !== false;
+    $('cameraLight').checked = !!draft.cameraLight;
   }
 
   document.querySelectorAll('#countBtns button').forEach(b => b.addEventListener('click', () => {
@@ -704,6 +753,7 @@
     draft.showTurns = $('showTurns').checked;
     draft.longJumps = $('longJumps').checked;
     draft.autoRotate = $('autoRotate').checked;
+    draft.cameraLight = $('cameraLight').checked;
     draft.players.forEach((p, i) => {
       p.name = (p.name || '').trim() || (p.type === 'human' ? 'Joueur ' : 'Ordinateur ') + (i + 1);
     });

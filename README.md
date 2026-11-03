@@ -27,6 +27,12 @@ comme une application (PWA, fonctionne hors ligne).
   début (×2 à ×16), puis on reprend là où on en était.
 - **Billes toutes différentes** : chaque bille a ses propres stries et pivote
   un peu à chaque déplacement ; elle ne retombe jamais tout à fait pareil.
+- **Ombres selon la lumière de la pièce** (option) : la caméra frontale
+  repère les lampes et les fenêtres, leur direction et leur taille. Une source
+  ponctuelle donne une ombre nette, une source étendue une ombre floue ; chaque
+  source donne sa propre ombre, et le reflet des billes se tourne vers la
+  lumière principale. Les images sont analysées sur l'appareil, en tout petit,
+  et ne sont ni enregistrées ni envoyées.
 - **Plateau inclinable** : glisser deux doigts vers le haut ou le bas (molette
   de la souris sur PC) pour incliner le plateau en perspective ; les billes
   restent rondes et on les touche directement pour les prendre.

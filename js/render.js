@@ -123,6 +123,7 @@
       this.angle = 0;   // rotation du plateau (radians, sens de canvas.rotate)
       this.tilt = 0;    // inclinaison du plateau (radians), appliquée en CSS 3D
       this.armColors = [null, null, null, null, null, null];
+      this.setLights(root.CCLight.DEFAULT_LIGHTS);
       this.pos = BOARD.cells.map(() => ({ x: 0, y: 0 }));
       this.resize();
     }
@@ -464,27 +465,69 @@
       return bd <= (this.spacing * 0.55) ** 2 ? best : -1;
     }
 
-    drawShadow(ctx, x, y, lift) {
-      const r = this.pieceR;
-      const off = r * 0.12 + lift * 0.35;
-      const g = ctx.createRadialGradient(x + off, y + off * 1.3, r * 0.2, x + off, y + off * 1.3, r * (1.1 + lift / r * 0.3));
-      g.addColorStop(0, `rgba(0,0,0,${0.5 - Math.min(0.3, lift / r * 0.15)})`);
-      g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(x + off, y + off * 1.3, r * (1.15 + lift / r * 0.3), 0, Math.PI * 2);
-      ctx.fill();
+    /**
+     * Éclairage de la pièce (voir light.js) : les sources donnent les ombres
+     * des billes, la principale oriente aussi le reflet sur les billes.
+     */
+    setLights(model) {
+      this.lights = model.lights;
+      this.ambient = model.ambient;
+      const main = model.lights.reduce((a, b) => (b.weight > a.weight ? b : a), model.lights[0]);
+      // Le reflet du calque de lumière est dessiné vers le haut à gauche (-0,38 ; -0,45).
+      this.highlightTurn = Math.atan2(main.dy, main.dx) - Math.atan2(-0.45, -0.38);
     }
 
-    /** Bille ronde à l'écran : veinage tourné de `spin`, lumière fixe. */
+    /**
+     * Ombres d'une bille dont le centre est à `lift` au-dessus de sa position
+     * de repos : une ombre par source, poussée à l'opposé de la lumière,
+     * allongée si la lumière est rasante, floue d'autant plus que la source
+     * est étendue et la bille haute ; plus une ombre de contact juste dessous.
+     */
+    drawShadow(ctx, x, y, lift) {
+      const r = this.pieceR, h = r * 0.6 + lift;
+      const dark = 0.6 * (1 - 0.6 * this.ambient);
+      for (const l of this.lights) {
+        const len = h * l.tan;
+        const stretch = Math.min(2.5, Math.sqrt(1 + l.tan * l.tan));
+        const pen = Math.max(r * 0.12, 2 * h * Math.tan(l.soft) * (1 + l.tan * l.tan));
+        const R1 = r + pen / 2, R0 = Math.max(0, r - pen / 2);
+        const a = dark * l.weight * r / (r + lift * 0.5);
+        ctx.save();
+        ctx.translate(x - l.dx * len, y - l.dy * len);
+        ctx.rotate(Math.atan2(l.dy, l.dx));
+        ctx.scale(stretch, 1);
+        const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R1);
+        g.addColorStop(0, `rgba(0,0,0,${a})`);
+        g.addColorStop(R0 / R1, `rgba(0,0,0,${a * 0.85})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(0, 0, R1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      if (lift < r) {
+        const a = 0.35 * (1 - lift / r);
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r * 0.8);
+        g.addColorStop(0, `rgba(0,0,0,${a})`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, r * 0.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    /** Bille ronde à l'écran : veinage tourné de `spin`, reflet tourné vers la lumière. */
     drawBall(ctx, id, sx, sy, scale, spin) {
       const s = this.spriteSize * scale;
       ctx.save();
       ctx.translate(sx, sy);
       ctx.rotate(spin);
       ctx.drawImage(this.ballSprites[id], -s / 2, -s / 2, s, s);
+      ctx.rotate(this.highlightTurn - spin);
+      ctx.drawImage(this.lightSprite, -s / 2, -s / 2, s, s);
       ctx.restore();
-      ctx.drawImage(this.lightSprite, sx - s / 2, sy - s / 2, s, s);
     }
 
     drawPath(ctx, path, color, alpha, dash) {

@@ -84,6 +84,10 @@
         <label for="autoRotate" class="label">Pivoter le plateau<small>Le triangle de l'humain qui joue vient en bas</small></label>
         <input type="checkbox" id="autoRotate" checked>
       </div>
+      <div class="field row">
+        <label for="cameraLight" class="label">Ombres selon la lumière de la pièce<small>La caméra repère les lampes et fenêtres (rien n'est enregistré)</small></label>
+        <input type="checkbox" id="cameraLight">
+      </div>
       <div class="buttons wrap">
         <button id="btnWatchSetup" class="secondary">Revoir la partie</button>
         <button id="btnCancelSetup" class="secondary">Fermer</button>
@@ -108,6 +112,7 @@
       <p class="hint">Touchez (ou cliquez) un de vos pions, puis un trou en surbrillance. Vous pouvez aussi faire glisser le pion. Survolez un trou pour voir le chemin des sauts.</p>
       <p><b>Finir seul :</b> quand la partie s'arrête avant que le dernier joueur ait rangé tous ses pions, il peut continuer seul jusqu'au bout (bouton « Finir seul » de l'écran de fin ; touchez le plateau pour revoir cet écran).</p>
       <p><b>Revoir la partie :</b> rejoue toute la partie en accéléré depuis le début (bouton dans l'écran de fin ou dans le menu ☰).</p>
+      <p><b>Ombres selon la lumière de la pièce :</b> avec cette option, la caméra de l'écran regarde le plafond, repère les lampes et les fenêtres et dit si chaque source est ponctuelle (ombre nette) ou étendue (ombre floue). Les ombres des billes suivent. Les images restent sur l'appareil : elles ne sont ni enregistrées ni envoyées.</p>
       <p class="hint">Installer le jeu sur le téléphone ou l'ordinateur : bouton 📲 en haut de l'écran.</p>
       <p class="hint">Pour incliner le plateau, faites glisser deux doigts vers le haut ou vers le bas (sur PC : la molette de la souris).</p>
       <div class="about">
@@ -150,6 +155,7 @@
 
   <script src="js/game.js"></script>
   <script src="js/ai.js"></script>
+  <script src="js/light.js"></script>
   <script src="js/render.js"></script>
   <script src="js/main.js"></script>
 </body>

@@ -5,9 +5,9 @@
  * En échange, une seule chose vous est demandée, sur l'honneur : faire une bonne action chaque jour. Aider un voisin, sourire à un inconnu, ramasser un papier… c'est vous qui voyez.
  * Voir le fichier LICENSE.
  */
-const CACHE = 'dames-chinoises-v5';
+const CACHE = 'dames-chinoises-v6';
 const FILES = [
-  './', 'index.html', 'css/style.css', 'js/game.js', 'js/ai.js', 'js/render.js', 'js/main.js',
+  './', 'index.html', 'css/style.css', 'js/game.js', 'js/ai.js', 'js/light.js', 'js/render.js', 'js/main.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/logo.svg', 'icons/icon-192.png', 'icons/icon-512.png'
 ];
 
