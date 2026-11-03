@@ -248,30 +248,34 @@
   }
 
   // ---------- Lumière de la pièce (caméra) ----------
-  let lightModel = null, lightText = '', lightToastAt = 0;
+  let lightShown = RoomLight.DEFAULT_LIGHTS;   // éclairage affiché
+  let lightTarget = null;                       // dernière mesure, vers laquelle on glisse
+  let lightClock = 0, lightText = '', lightToastAt = 0;
 
-  /** Nouvelle analyse de la caméra : on lisse un peu pour éviter que les ombres sautent. */
+  /** Nouvelle mesure de la caméra : les ombres vont y glisser en douceur (voir lightFrame). */
   function onLightModel(model) {
-    if (!model) model = RoomLight.DEFAULT_LIGHTS;
-    if (lightModel && lightModel.lights.length === model.lights.length) {
-      const mix = (a, b) => a + (b - a) * 0.5;
-      model = {
-        ambient: mix(lightModel.ambient, model.ambient),
-        lights: model.lights.map((l, i) => {
-          const o = lightModel.lights[i];
-          const dx = mix(o.dx, l.dx), dy = mix(o.dy, l.dy), n = Math.hypot(dx, dy) || 1;
-          return Object.assign({}, l, { dx: dx / n, dy: dy / n, tan: mix(o.tan, l.tan), soft: mix(o.soft, l.soft), weight: mix(o.weight, l.weight) });
-        })
-      };
-    }
-    lightModel = model;
-    renderer.setLights(model);
+    lightTarget = model || RoomLight.DEFAULT_LIGHTS;
     requestDraw();
     const text = RoomLight.describe(model);
     if (text !== lightText && performance.now() - lightToastAt > 5000) {
       lightText = text;
       lightToastAt = performance.now();
       toast('💡 ' + text.charAt(0).toUpperCase() + text.slice(1));
+    }
+  }
+
+  /** À chaque image affichée, l'éclairage se rapproche de la mesure (constante de temps ≈ 0,1 s). */
+  function lightFrame(now) {
+    const dt = lightClock ? Math.min(100, now - lightClock) : 16;
+    lightClock = now;
+    const { model, moving } = RoomLight.blend(lightShown, lightTarget, 1 - Math.exp(-dt / 90));
+    lightShown = model;
+    renderer.setLights(model);
+    if (!moving) {
+      lightShown = lightTarget;
+      renderer.setLights(lightTarget);
+      lightTarget = null;
+      lightClock = 0;
     }
   }
 
@@ -287,9 +291,8 @@
       });
     } else {
       RoomLight.Camera.stop();
-      lightModel = null;
       lightText = '';
-      renderer.setLights(RoomLight.DEFAULT_LIGHTS);
+      if (lightShown !== RoomLight.DEFAULT_LIGHTS) lightTarget = RoomLight.DEFAULT_LIGHTS;
     }
   }
 
@@ -470,6 +473,7 @@
     raf = 0;
     if (!game) return;
     if (spin) spinFrame(now);
+    if (lightTarget) lightFrame(now);
     let movers = job ? jobFrame(now) : null;
     const hidden = job ? new Set(job.hidden) : new Set();
     if (drag && drag.moved) {
@@ -497,7 +501,7 @@
       lastMove: job ? null : lastMove,
       time: now
     });
-    if (job || spin || selected >= 0) requestDraw();
+    if (job || spin || selected >= 0 || lightTarget) requestDraw();
   }
 
   // ---------- Saisie ----------

@@ -9,6 +9,8 @@
  * au-dessus du plateau. On repère les taches les plus lumineuses de l'image :
  * leur position donne la direction de chaque lampe ou fenêtre, leur taille
  * dit si la source est ponctuelle (ombre nette) ou étendue (ombre floue).
+ * Une quinzaine d'images sont analysées par seconde, et l'éclairage affiché
+ * glisse en douceur vers la dernière mesure (voir blend).
  * Les images sont analysées sur l'appareil, en petit, et ne sont ni gardées
  * ni envoyées nulle part.
  */
@@ -116,7 +118,53 @@
     return `${parts.length} source${parts.length > 1 ? 's' : ''} : ${parts.join(', ')}`;
   }
 
-  /** Caméra : une petite image analysée chaque seconde, tant que le mode est actif. */
+  /**
+   * Rapproche l'éclairage affiché `cur` de la mesure `tgt` d'une fraction `a`
+   * (0 à 1). Chaque source mesurée est appariée à la source affichée la plus
+   * proche ; une nouvelle source apparaît en fondu, une source disparue
+   * s'estompe. On interpole le vecteur d'ombre (direction × longueur), ce qui
+   * reste doux même quand la lumière passe au-dessus du plateau.
+   * Renvoie { model, moving } ; moving est faux une fois l'écart négligeable.
+   */
+  function blend(cur, tgt, a) {
+    const lerp = (x, y) => x + (y - x) * a;
+    if (!cur) cur = { lights: [], ambient: tgt.ambient };
+    const used = new Set(), lights = [];
+    let moving = Math.abs(cur.ambient - tgt.ambient) > 0.003;
+    for (const t of tgt.lights) {
+      let best = -1, bd = Infinity;
+      cur.lights.forEach((c, i) => {
+        if (used.has(i)) return;
+        const d = Math.hypot(c.dx * c.tan - t.dx * t.tan, c.dy * c.tan - t.dy * t.tan) + Math.abs(c.soft - t.soft);
+        if (d < bd) { bd = d; best = i; }
+      });
+      if (best < 0 || bd > 0.8) {
+        lights.push(Object.assign({}, t, { weight: t.weight * a }));
+        moving = true;
+        continue;
+      }
+      used.add(best);
+      const c = cur.lights[best];
+      const vx = lerp(c.dx * c.tan, t.dx * t.tan), vy = lerp(c.dy * c.tan, t.dy * t.tan), tan = Math.hypot(vx, vy);
+      const l = Object.assign({}, t, {
+        dx: tan > 1e-4 ? vx / tan : c.dx,
+        dy: tan > 1e-4 ? vy / tan : c.dy,
+        tan,
+        soft: lerp(c.soft, t.soft),
+        weight: lerp(c.weight, t.weight)
+      });
+      if (bd > 0.002 || Math.abs(c.weight - t.weight) > 0.003) moving = true;
+      lights.push(l);
+    }
+    cur.lights.forEach((c, i) => {
+      if (used.has(i)) return;
+      const weight = c.weight * (1 - a);
+      if (weight > 0.01) { lights.push(Object.assign({}, c, { weight })); moving = true; }
+    });
+    return { model: { lights, ambient: lerp(cur.ambient, tgt.ambient) }, moving };
+  }
+
+  /** Caméra : une quinzaine de petites images analysées par seconde, tant que le mode est actif. */
   const Camera = {
     stream: null,
     timer: 0,
@@ -143,7 +191,7 @@
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           onModel(analyze(ctx.getImageData(0, 0, canvas.width, canvas.height)));
         }
-        this.timer = setTimeout(tick, 1000);
+        this.timer = setTimeout(tick, 66);
       };
       tick();
     },
@@ -154,7 +202,7 @@
     }
   };
 
-  const RoomLight = { analyze, describe, Camera, DEFAULT_LIGHTS };
+  const RoomLight = { analyze, describe, blend, Camera, DEFAULT_LIGHTS };
   root.CCLight = RoomLight;
   if (typeof module !== 'undefined' && module.exports) module.exports = RoomLight;
 })(typeof window !== 'undefined' ? window : globalThis);
