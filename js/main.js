@@ -295,10 +295,11 @@
         DeviceOrientationEvent.requestPermission().catch(() => {});
       }
       window.addEventListener('deviceorientation', onOrientation);
-      RoomLight.Camera.start(onLightMeasure).then(() => { cameraOn = true; }).catch(err => {
+      RoomLight.Camera.start(onLightMeasure).then(started => { if (started && config.cameraLight) cameraOn = true; }).catch(err => {
         RoomLight.Camera.stop();
         config.cameraLight = false;
         store.set('cc-settings', config);
+        $('cameraLight').checked = false;
         toast(err && err.name === 'NotAllowedError'
           ? 'Caméra refusée : les ombres gardent la lumière par défaut.'
           : (err && err.message) || 'Caméra indisponible.');
@@ -765,6 +766,29 @@
     draft.players = fresh.map((p, i) => draft.players[i] || p);
     renderSetup();
   }));
+
+  /**
+   * Réglages d'affichage : ils s'appliquent tout de suite, sans recommencer la
+   * partie (les joueurs et le mode Bonne-Maman, eux, attendent « Commencer »).
+   */
+  function liveSetting(id, read, apply) {
+    $(id).addEventListener('change', () => {
+      const v = read($(id));
+      draft[id] = v;
+      config[id] = v;
+      store.set('cc-settings', config);
+      if (apply) apply();
+      updateHud();
+      requestDraw();
+    });
+  }
+  liveSetting('speed', el => parseFloat(el.value) || 1);
+  liveSetting('showMoves', el => el.value);
+  liveSetting('showTurns', el => el.checked);
+  liveSetting('autoRotate', el => el.checked, () => {
+    if (config.autoRotate && isHumanTurn()) rotateTo(game.players[game.current].arm);
+  });
+  liveSetting('cameraLight', el => el.checked, applyCamera);
 
   $('btnStart').addEventListener('click', () => {
     Sound.unlock();

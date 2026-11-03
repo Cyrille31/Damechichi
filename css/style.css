@@ -218,7 +218,7 @@ input[type=text], select {
   font-size: 0.95rem;
 }
 .seat select { width: auto; }
-input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); }
+input[type=checkbox] { flex: none; width: 22px; height: 22px; accent-color: var(--accent); }
 
 .buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 .buttons button {

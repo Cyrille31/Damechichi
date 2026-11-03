@@ -336,10 +336,13 @@
       ctx.lineWidth = 1.2;
       ctx.stroke();
 
-      const hs = this.holeSize;
+      // Le bord clair et le bord sombre des trous se tournent vers la lumière principale.
+      const hs = this.holeSize, cs = Math.cos(this.highlightTurn), sn = Math.sin(this.highlightTurn);
       for (let i = 0; i < N; i++) {
-        ctx.drawImage(this.holeSprite, this.pos[i].x - hs / 2, this.pos[i].y - hs / 2, hs, hs);
+        ctx.setTransform(this.dpr * cs, this.dpr * sn, -this.dpr * sn, this.dpr * cs, this.dpr * this.pos[i].x, this.dpr * this.pos[i].y);
+        ctx.drawImage(this.holeSprite, -hs / 2, -hs / 2, hs, hs);
       }
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     }
 
     /**

@@ -258,14 +258,21 @@
   const Camera = {
     stream: null,
     timer: 0,
+    run: 0,       // numéro du démarrage en cours : un arrêt pendant le démarrage l'annule
     async start(onModel) {
-      if (this.stream) return;
+      if (this.stream) return true;
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('Caméra indisponible : ouvrez le jeu depuis une adresse https://.');
       }
-      this.stream = await navigator.mediaDevices.getUserMedia({
+      const run = ++this.run;
+      const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 320 }, height: { ideal: 240 } }, audio: false
       });
+      if (run !== this.run) {
+        stream.getTracks().forEach(t => t.stop());
+        return false;
+      }
+      this.stream = stream;
       const video = document.createElement('video');
       video.muted = true;
       video.playsInline = true;
@@ -284,8 +291,10 @@
         this.timer = setTimeout(tick, 66);
       };
       tick();
+      return true;
     },
     stop() {
+      this.run++;
       clearTimeout(this.timer);
       if (this.stream) this.stream.getTracks().forEach(t => t.stop());
       this.stream = null;
