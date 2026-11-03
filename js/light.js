@@ -9,8 +9,9 @@
  * au-dessus du plateau. On repère les taches les plus lumineuses de l'image :
  * leur position donne la direction de chaque lampe ou fenêtre, leur taille
  * dit si la source est ponctuelle (ombre nette) ou étendue (ombre floue).
- * Une quinzaine d'images sont analysées par seconde, et l'éclairage affiché
- * glisse en douceur vers la dernière mesure (voir blend).
+ * Une quinzaine d'images sont analysées par seconde ; le gyroscope suit la
+ * rotation du téléphone entre deux images (voir Tracker), et l'éclairage
+ * affiché glisse en douceur vers le résultat (voir blend).
  * Les images sont analysées sur l'appareil, en petit, et ne sont ni gardées
  * ni envoyées nulle part.
  */
@@ -26,28 +27,40 @@
     ambient: 0.35
   };
 
+  /** Aucune source visible ni mémorisée : lumière diffuse venant d'en haut. */
+  const DIFFUSE = {
+    lights: [{ dx: -0.6, dy: -0.8, tan: 0.1, soft: 0.6, weight: 1, kind: 'diffuse' }],
+    ambient: 0.85
+  };
+
   /**
-   * Analyse une image ({data, width, height} au format RGBA).
-   * Renvoie { lights: [{dx, dy, tan, soft, weight, kind}], ambient } ou null
-   * si l'image est trop sombre pour conclure.
-   * (dx, dy) : direction de la lumière à l'écran (vers la source) ;
-   * tan : tangente de l'angle avec la verticale (longueur de l'ombre) ;
-   * soft : rayon apparent de la source (radians), qui règle le flou.
+   * Analyse une image de la caméra ({data, width, height} au format RGBA).
+   * Renvoie { sources, ambient, view } ou null si l'image est trop sombre.
+   * Chaque source : position dans l'image en tangentes d'angle (x vers la
+   * droite de l'image, y vers le bas), tan (écart à la verticale), soft
+   * (rayon apparent en radians) et strength (force relative).
+   * view : demi-largeur et demi-hauteur du champ de la caméra, en tangentes.
+   * Seules les taches presque saturées comptent : une lampe ou une fenêtre
+   * éblouit la caméra, un mur clair non.
    */
   function analyze(img) {
     const { data, width: W, height: H } = img;
     const L = new Float32Array(W * H);
-    let sum = 0, sum2 = 0, max = 0;
+    let sum = 0, max = 0;
     for (let i = 0; i < W * H; i++) {
       const l = 0.2126 * data[i * 4] + 0.7152 * data[i * 4 + 1] + 0.0722 * data[i * 4 + 2];
       L[i] = l;
       sum += l;
-      sum2 += l * l;
       if (l > max) max = l;
     }
-    const mean = sum / (W * H), std = Math.sqrt(Math.max(0, sum2 / (W * H) - mean * mean));
     if (max < 60) return null;
-    const T = Math.max(0.85 * max, mean + 2 * std, 120);
+    const mean = sum / (W * H);
+    const scale = Math.tan(HALF_FOV) / (W / 2);   // tangente d'angle par pixel
+    const view = { hw: Math.tan(HALF_FOV), hh: Math.tan(HALF_FOV) * H / W };
+    // Part de lumière diffuse : plus les sources ressortent peu du fond, plus l'éclairage est diffus.
+    const ambient = Math.max(0.15, Math.min(0.85, 1 - Math.min(1, (max - mean) / 160)));
+    if (max < 230) return { sources: [], ambient: 0.85, view };
+    const T = Math.max(0.85 * max, 215);
 
     // Taches lumineuses : composantes connexes des pixels au-dessus du seuil.
     const seen = new Uint8Array(W * H);
@@ -67,55 +80,132 @@
           if (j >= 0 && !seen[j] && L[j] >= T) { seen[j] = 1; stack.push(j); }
         }
       }
-      blobs.push({ n, e, cx: sx / e, cy: sy / e });
+      if (n >= 2) blobs.push({ n, e, cx: sx / e, cy: sy / e });
     }
-    // Aucune tache ne ressort : lumière diffuse (ciel couvert, plafond éclairé…).
-    if (!blobs.length) {
-      return { lights: [{ dx: -0.6, dy: -0.8, tan: 0.1, soft: 0.6, weight: 1, kind: 'diffuse' }], ambient: 0.85 };
-    }
-    blobs.sort((a, b) => b.e - a.e);
     // Une ampoule sature la caméra : sa vraie force est sous-estimée par rapport à
     // une fenêtre. On compare donc les sources par la racine de leur énergie.
-    const strength = b => Math.sqrt(b.e);
-    const kept = blobs.filter(b => b.n >= 2 && strength(b) >= strength(blobs[0]) * 0.08).slice(0, 3);
-    if (!kept.length) kept.push(blobs[0]);
-
-    const scale = Math.tan(HALF_FOV) / (W / 2);   // tangente d'angle par pixel
-    let total = 0;
-    const lights = kept.map(b => {
-      // Image de la caméra frontale : la droite de l'image est la gauche de l'écran.
-      const tx = -(b.cx + 0.5 - W / 2) * scale, ty = (b.cy + 0.5 - H / 2) * scale;
-      const tan = Math.hypot(tx, ty);
-      const radius = Math.atan(Math.sqrt(b.n / Math.PI) * scale);
-      total += strength(b);
-      return {
-        dx: tan > 1e-6 ? tx / tan : 0,
-        dy: tan > 1e-6 ? ty / tan : -1,
-        tan: Math.min(tan, 2),
-        soft: radius,
-        weight: strength(b),
-        kind: radius > POINT_MAX ? 'étendue' : 'ponctuelle'
-      };
+    blobs.sort((a, b) => b.e - a.e);
+    const kept = blobs.filter(b => Math.sqrt(b.e) >= Math.sqrt(blobs[0].e) * 0.08).slice(0, 3);
+    const sources = kept.map(b => {
+      const x = (b.cx + 0.5 - W / 2) * scale, y = (b.cy + 0.5 - H / 2) * scale;
+      return { x, y, tan: Math.min(Math.hypot(x, y), 2), soft: Math.atan(Math.sqrt(b.n / Math.PI) * scale), strength: Math.sqrt(b.e) };
     });
-    lights.forEach(l => { l.weight /= total; });
-
-    // Part de lumière diffuse : plus les sources ressortent peu du fond, plus l'éclairage est diffus.
-    const contrast = Math.min(1, (max - mean) / 160);
-    return { lights, ambient: Math.max(0.15, Math.min(0.85, 1 - contrast)) };
+    return { sources, ambient, view };
   }
 
-  /** Décrit les sources pour l'utilisateur (« 1 ponctuelle en haut à gauche… »). */
-  function describe(model) {
-    if (!model) return 'trop sombre pour repérer une lumière';
-    if (model.lights.length === 1 && model.lights[0].kind === 'diffuse') return 'lumière diffuse, sans source marquée';
-    const where = l => {
-      if (l.tan < 0.15) return 'juste au-dessus';
-      const v = l.dy < -0.38 ? 'en haut' : l.dy > 0.38 ? 'en bas' : '';
-      const h = l.dx < -0.38 ? 'à gauche' : l.dx > 0.38 ? 'à droite' : '';
-      return [v, h].filter(Boolean).join(' ') || 'au centre';
-    };
-    const parts = model.lights.map(l => `${l.kind} ${where(l)}`);
-    return `${parts.length} source${parts.length > 1 ? 's' : ''} : ${parts.join(', ')}`;
+  const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
+
+  /**
+   * Suivi des sources dans le repère de la pièce. La caméra voit peu de
+   * choses à la fois (son champ est étroit et rectangulaire) ; le gyroscope
+   * donne l'orientation du téléphone à plat (heading, en radians). Chaque
+   * source repérée est donc rangée par sa direction dans la pièce : quand le
+   * téléphone tourne, l'ombre tourne avec lui, même si la lampe sort du champ
+   * de la caméra. Elle n'est oubliée que si elle devrait être visible et ne
+   * l'est plus (lampe éteinte, main devant).
+   *
+   * Le sens de l'image (miroir ou non) dépend du téléphone : on le déduit
+   * en comparant le mouvement des lampes dans l'image à la rotation donnée
+   * par le gyroscope.
+   */
+  class Tracker {
+    constructor(mirror = false) {
+      this.mirror = mirror;     // vrai si la droite de l'image est la droite de l'écran
+      this.heading = null;      // orientation du téléphone (radians), null sans gyroscope
+      this.tracks = [];         // sources : vecteur (vx, vy) dans la pièce, longueur = tan
+      this.ambient = DEFAULT_LIGHTS.ambient;
+      this.history = [];        // pour la calibration du sens de l'image
+    }
+
+    /** Direction à l'écran (angle) d'un point de l'image. */
+    screenAngle(s, mirror = this.mirror) {
+      return Math.atan2(s.y, mirror ? s.x : -s.x);
+    }
+
+    measure(m) {
+      if (!m) return;
+      const h = this.heading || 0;
+      this.ambient += (m.ambient - this.ambient) * 0.3;
+      if (this.heading !== null && m.sources.length) this.calibrate(m.sources[0], h);
+
+      const used = new Set();
+      for (const s of m.sources) {
+        const az = this.screenAngle(s) - h;
+        const vx = s.tan * Math.cos(az), vy = s.tan * Math.sin(az);
+        let best = -1, bd = 0.45;
+        this.tracks.forEach((t, i) => {
+          const d = Math.hypot(t.vx - vx, t.vy - vy);
+          if (!used.has(i) && d < bd) { bd = d; best = i; }
+        });
+        if (best < 0) {
+          this.tracks.push({ vx, vy, soft: s.soft, strength: s.strength, missing: 0 });
+          used.add(this.tracks.length - 1);
+        } else {
+          const t = this.tracks[best];
+          t.vx += (vx - t.vx) * 0.35;
+          t.vy += (vy - t.vy) * 0.35;
+          t.soft += (s.soft - t.soft) * 0.35;
+          t.strength += (s.strength - t.strength) * 0.35;
+          t.missing = 0;
+          used.add(best);
+        }
+      }
+      // Source non revue : oubliée seulement si elle devrait être dans le champ.
+      this.tracks.forEach((t, i) => {
+        if (used.has(i)) return;
+        const az = Math.atan2(t.vy, t.vx) + h, tan = Math.hypot(t.vx, t.vy);
+        const sx = tan * Math.cos(az), sy = tan * Math.sin(az);
+        const inView = Math.abs(sx) < m.view.hw * 0.85 && Math.abs(sy) < m.view.hh * 0.85;
+        if (inView) t.missing++;
+      });
+      this.tracks = this.tracks.filter(t => t.missing < 4)
+        .sort((a, b) => b.strength - a.strength).slice(0, 4);
+    }
+
+    /**
+     * Compare deux hypothèses (image en miroir ou non) sur la source la plus
+     * forte : avec la bonne, sa direction dans la pièce reste fixe pendant que
+     * le téléphone tourne ; avec la mauvaise, elle tourne deux fois plus vite.
+     */
+    calibrate(s, h) {
+      this.history.push({ a: this.screenAngle(s, false), h });
+      if (this.history.length > 60) this.history.shift();
+      const h0 = this.history[0].h;
+      const span = Math.max(...this.history.map(e => Math.abs(wrap(e.h - h0))));
+      if (span < 1.2) return;
+      const spread = mirror => {
+        let cx = 0, cy = 0;
+        for (const e of this.history) {
+          const w = (mirror ? Math.PI - e.a : e.a) - e.h;
+          cx += Math.cos(w);
+          cy += Math.sin(w);
+        }
+        return 1 - Math.hypot(cx, cy) / this.history.length;
+      };
+      const now = spread(this.mirror), other = spread(!this.mirror);
+      if (now > 0.15 && other < now * 0.4) {
+        this.mirror = !this.mirror;
+        this.tracks = [];
+      }
+      this.history = [];
+    }
+
+    /** Éclairage à l'écran pour l'orientation actuelle du téléphone. */
+    screenModel() {
+      if (!this.tracks.length) return DIFFUSE;
+      const h = this.heading || 0;
+      const total = this.tracks.reduce((a, t) => a + t.strength, 0);
+      return {
+        ambient: this.ambient,
+        lights: this.tracks.map(t => {
+          const tan = Math.hypot(t.vx, t.vy), az = Math.atan2(t.vy, t.vx) + h;
+          return {
+            dx: Math.cos(az), dy: Math.sin(az), tan, soft: t.soft, weight: t.strength / total,
+            kind: t.soft > POINT_MAX ? 'étendue' : 'ponctuelle'
+          };
+        })
+      };
+    }
   }
 
   /**
@@ -202,7 +292,7 @@
     }
   };
 
-  const RoomLight = { analyze, describe, blend, Camera, DEFAULT_LIGHTS };
+  const RoomLight = { analyze, blend, Tracker, Camera, DEFAULT_LIGHTS };
   root.CCLight = RoomLight;
   if (typeof module !== 'undefined' && module.exports) module.exports = RoomLight;
 })(typeof window !== 'undefined' ? window : globalThis);

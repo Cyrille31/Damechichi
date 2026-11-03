@@ -249,26 +249,35 @@
 
   // ---------- Lumière de la pièce (caméra) ----------
   let lightShown = RoomLight.DEFAULT_LIGHTS;   // éclairage affiché
-  let lightTarget = null;                       // dernière mesure, vers laquelle on glisse
-  let lightClock = 0, lightText = '', lightToastAt = 0;
+  let lightTarget = null;                       // éclairage vers lequel on glisse
+  let lightClock = 0;
+  let cameraOn = false;
+  const tracker = new RoomLight.Tracker(store.get('cc-mirror') === true);
 
-  /** Nouvelle mesure de la caméra : les ombres vont y glisser en douceur (voir lightFrame). */
-  function onLightModel(model) {
-    lightTarget = model || RoomLight.DEFAULT_LIGHTS;
+  /** Nouvelle image de la caméra : on met à jour les sources suivies. */
+  function onLightMeasure(m) {
+    tracker.measure(m);
+    if (tracker.mirror !== (store.get('cc-mirror') === true)) store.set('cc-mirror', tracker.mirror);
     requestDraw();
-    const text = RoomLight.describe(model);
-    if (text !== lightText && performance.now() - lightToastAt > 5000) {
-      lightText = text;
-      lightToastAt = performance.now();
-      toast('💡 ' + text.charAt(0).toUpperCase() + text.slice(1));
-    }
   }
 
-  /** À chaque image affichée, l'éclairage se rapproche de la mesure (constante de temps ≈ 0,1 s). */
+  /** Téléphone à plat : sa rotation fait tourner les ombres, comme dans la pièce. */
+  function onOrientation(e) {
+    if (e.alpha === null || e.alpha === undefined) return;
+    const screenTurn = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+    const heading = (e.alpha - screenTurn) * Math.PI / 180;
+    const before = tracker.heading;
+    tracker.heading = heading;
+    if (before === null || Math.abs(Math.atan2(Math.sin(heading - before), Math.cos(heading - before))) > 0.003) requestDraw();
+  }
+
+  /** À chaque image affichée, l'éclairage se rapproche de la cible (constante de temps ≈ 40 ms). */
   function lightFrame(now) {
+    if (cameraOn) lightTarget = tracker.screenModel();
+    if (!lightTarget) return;
     const dt = lightClock ? Math.min(100, now - lightClock) : 16;
     lightClock = now;
-    const { model, moving } = RoomLight.blend(lightShown, lightTarget, 1 - Math.exp(-dt / 90));
+    const { model, moving } = RoomLight.blend(lightShown, lightTarget, 1 - Math.exp(-dt / 40));
     lightShown = model;
     renderer.setLights(model);
     if (!moving) {
@@ -281,7 +290,12 @@
 
   function applyCamera() {
     if (config.cameraLight) {
-      RoomLight.Camera.start(onLightModel).catch(err => {
+      // iPhone : le gyroscope demande une autorisation, pendant le geste de l'utilisateur.
+      if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission().catch(() => {});
+      }
+      window.addEventListener('deviceorientation', onOrientation);
+      RoomLight.Camera.start(onLightMeasure).then(() => { cameraOn = true; }).catch(err => {
         RoomLight.Camera.stop();
         config.cameraLight = false;
         store.set('cc-settings', config);
@@ -291,7 +305,9 @@
       });
     } else {
       RoomLight.Camera.stop();
-      lightText = '';
+      window.removeEventListener('deviceorientation', onOrientation);
+      cameraOn = false;
+      tracker.tracks = [];
       if (lightShown !== RoomLight.DEFAULT_LIGHTS) lightTarget = RoomLight.DEFAULT_LIGHTS;
     }
   }
@@ -473,7 +489,7 @@
     raf = 0;
     if (!game) return;
     if (spin) spinFrame(now);
-    if (lightTarget) lightFrame(now);
+    lightFrame(now);
     let movers = job ? jobFrame(now) : null;
     const hidden = job ? new Set(job.hidden) : new Set();
     if (drag && drag.moved) {
