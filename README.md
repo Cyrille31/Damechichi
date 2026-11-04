@@ -20,6 +20,10 @@ comme une application (PWA, fonctionne hors ligne).
 - **Nombre de tours** (option) : affiché dans le bandeau et sur l'écran de fin.
 - **Finir seul** : quand la partie s'arrête, le dernier joueur peut continuer
   seul jusqu'à ranger tous ses pions.
+- **Bouton ⏻ Quitter** (en haut quand l'écran est en plein écran, et dans le
+  menu ☰) : sauvegarde la partie, quitte le plein écran du jeu et ferme la
+  fenêtre quand le navigateur le permet ; sinon il explique comment sortir du
+  plein écran F11 (touche F11, ou glisser du haut de l'écran puis ✕).
 - **Bouton 📲 Installer** : installe le jeu sur le smartphone ou le PC
   (instructions affichées sur iPhone/iPad, où l'installation passe par
   Safari → Partager → « Sur l'écran d'accueil »).

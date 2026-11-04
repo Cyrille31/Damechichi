@@ -31,6 +31,7 @@
       <button id="btnSound" title="Son" aria-label="Son">🔊</button>
       <button id="btnRules" title="Règles" aria-label="Règles">?</button>
       <button id="btnMenu" title="Nouvelle partie" aria-label="Nouvelle partie">☰</button>
+      <button id="btnQuit" title="Quitter le jeu" aria-label="Quitter le jeu" hidden>⏻</button>
     </nav>
   </header>
 
@@ -89,6 +90,7 @@
         <input type="checkbox" id="cameraLight">
       </div>
       <div class="buttons wrap">
+        <button id="btnQuitSetup" class="secondary">Quitter le jeu</button>
         <button id="btnWatchSetup" class="secondary">Revoir la partie</button>
         <button id="btnCancelSetup" class="secondary">Fermer</button>
         <button id="btnStart" class="primary">Commencer</button>
@@ -147,6 +149,21 @@
       <p id="installIos" hidden>Sur iPhone ou iPad, dans <b>Safari</b> : touchez le bouton <b>Partager</b> (le carré avec une flèche vers le haut), puis <b>« Sur l'écran d'accueil »</b>.</p>
       <p id="installOther">Ouvrez le menu du navigateur (<b>⋮</b> ou <b>…</b>), puis choisissez <b>« Installer l'application »</b> ou <b>« Ajouter à l'écran d'accueil »</b>.</p>
       <p class="hint">Le jeu s'installe alors comme une application : il s'ouvre en plein écran et fonctionne sans connexion. L'installation n'est possible que si le jeu est ouvert depuis une adresse https:// (par exemple GitHub Pages).</p>
+      <div class="buttons"><button class="primary" data-close>Compris</button></div>
+    </div>
+  </div>
+
+  <div id="quit" class="modal" hidden>
+    <div class="panel">
+      <h2>Quitter le jeu</h2>
+      <p>La partie est sauvegardée : vous la retrouverez telle quelle en rouvrant le jeu.</p>
+      <p id="quitFull">Le navigateur est en <b>plein écran</b> (touche F11), et le jeu ne peut pas en sortir lui-même. Pour en sortir :</p>
+      <ul id="quitFullHow">
+        <li>avec un clavier : appuyez sur <b>F11</b> ;</li>
+        <li>au doigt : faites glisser le doigt <b>depuis le bord haut de l'écran vers le bas</b>, puis touchez le <b>✕</b> ou « Quitter le plein écran » ;</li>
+        <li>à la souris : amenez le pointeur tout en haut de l'écran, puis cliquez sur le <b>✕</b>.</li>
+      </ul>
+      <p>Vous pourrez ensuite fermer l'onglet ou la fenêtre du navigateur.</p>
       <div class="buttons"><button class="primary" data-close>Compris</button></div>
     </div>
   </div>

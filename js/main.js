@@ -865,6 +865,49 @@
     if (Sound.on) { Sound.unlock(); Sound.toc(); }
   });
   $('btnSound').textContent = Sound.on ? '🔊' : '🔇';
+  // ---------- Quitter ----------
+  /** Plein écran : celui du jeu, celui du navigateur (F11) ou une application installée. */
+  const browserFullscreen = () => window.matchMedia('(display-mode: fullscreen)').matches ||
+    (window.innerHeight >= screen.height - 2 && window.innerWidth >= screen.width - 2);
+  const noBrowserBar = () => !!document.fullscreenElement || browserFullscreen() || standalone;
+  function updateQuitButton() {
+    $('btnQuit').hidden = !noBrowserBar();
+  }
+  window.addEventListener('resize', updateQuitButton);
+  document.addEventListener('fullscreenchange', updateQuitButton);
+  updateQuitButton();
+
+  /**
+   * Une page web ne peut pas toujours se fermer elle-même, ni sortir du plein
+   * écran F11 du navigateur : on sauvegarde, on fait ce qui est permis, puis
+   * on explique la suite si la fenêtre est toujours là.
+   */
+  async function quitApp() {
+    clearTimeout(aiTimer);
+    save();
+    if (config.cameraLight) RoomLight.Camera.stop();
+    $('setup').hidden = true;
+    $('endgame').hidden = true;
+    if (document.fullscreenElement) {
+      try { await document.exitFullscreen(); } catch (e) { /* déjà sorti */ }
+    }
+    window.close();
+    setTimeout(() => {
+      if (window.closed) return;
+      const f11 = browserFullscreen();
+      $('quitFull').hidden = !f11;
+      $('quitFullHow').hidden = !f11;
+      $('quit').hidden = false;
+    }, 300);
+  }
+  $('btnQuit').addEventListener('click', quitApp);
+  $('btnQuitSetup').addEventListener('click', quitApp);
+  // En fermant la fenêtre d'explication, le jeu reprend (caméra comprise).
+  $('quit').querySelector('[data-close]').addEventListener('click', () => {
+    if (config.cameraLight) applyCamera();
+    nextTurn();
+  });
+
   document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => {
     b.closest('.modal').hidden = true;
   }));
