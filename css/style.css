@@ -302,3 +302,28 @@ input[type=checkbox] { flex: none; width: 22px; height: 22px; accent-color: var(
   font: inherit;
   cursor: pointer;
 }
+
+/* Menu : boutons Quitter / Fermer / Commencer sur une ligne, toujours visibles en bas. */
+.title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.title-row h2 { margin: 0; }
+.title-row button.small {
+  height: 34px; padding: 0 10px; border-radius: 10px; font: inherit; font-size: 0.85rem; cursor: pointer; white-space: nowrap;
+}
+.title-row button[hidden] { display: none; }
+.buttons.bar {
+  position: sticky;
+  bottom: -16px;
+  margin: 12px -20px -16px;
+  padding: 10px 20px 14px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  flex-wrap: nowrap;
+}
+.buttons.bar button { flex: 1; min-width: 0; padding: 0 4px; font-size: 0.95rem; white-space: nowrap; }
+.buttons.bar .primary { flex: 1.4; }
+
+@media (max-height: 820px) {
+  #setup .logo { width: 64px; margin-bottom: 4px; }
+  #setup .field { margin: 8px 0; }
+  #setup .seat { padding: 4px 0; }
+}

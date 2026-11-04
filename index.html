@@ -31,7 +31,6 @@
       <button id="btnSound" title="Son" aria-label="Son">🔊</button>
       <button id="btnRules" title="Règles" aria-label="Règles">?</button>
       <button id="btnMenu" title="Nouvelle partie" aria-label="Nouvelle partie">☰</button>
-      <button id="btnQuit" title="Quitter le jeu" aria-label="Quitter le jeu" hidden>⏻</button>
     </nav>
   </header>
 
@@ -49,7 +48,10 @@
   <div id="setup" class="modal" hidden>
     <div class="panel">
       <img class="logo" src="icons/logo.svg" alt="Dames chinoises">
-      <h2>Nouvelle partie</h2>
+      <div class="title-row">
+        <h2>Nouvelle partie</h2>
+        <button id="btnWatchSetup" class="secondary small">▶ Revoir la partie</button>
+      </div>
       <div class="field">
         <span class="label">Nombre de joueurs</span>
         <div id="countBtns" class="segmented">
@@ -89,9 +91,8 @@
         <label for="cameraLight" class="label">Ombres selon la lumière de la pièce<small>La caméra repère les lampes et fenêtres (rien n'est enregistré)</small></label>
         <input type="checkbox" id="cameraLight">
       </div>
-      <div class="buttons wrap">
-        <button id="btnQuitSetup" class="secondary">Quitter le jeu</button>
-        <button id="btnWatchSetup" class="secondary">Revoir la partie</button>
+      <div class="buttons bar">
+        <button id="btnQuitSetup" class="secondary">Quitter</button>
         <button id="btnCancelSetup" class="secondary">Fermer</button>
         <button id="btnStart" class="primary">Commencer</button>
       </div>

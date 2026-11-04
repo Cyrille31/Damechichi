@@ -866,16 +866,9 @@
   });
   $('btnSound').textContent = Sound.on ? '🔊' : '🔇';
   // ---------- Quitter ----------
-  /** Plein écran : celui du jeu, celui du navigateur (F11) ou une application installée. */
+  /** Plein écran du navigateur (F11). */
   const browserFullscreen = () => window.matchMedia('(display-mode: fullscreen)').matches ||
     (window.innerHeight >= screen.height - 2 && window.innerWidth >= screen.width - 2);
-  const noBrowserBar = () => !!document.fullscreenElement || browserFullscreen() || standalone;
-  function updateQuitButton() {
-    $('btnQuit').hidden = !noBrowserBar();
-  }
-  window.addEventListener('resize', updateQuitButton);
-  document.addEventListener('fullscreenchange', updateQuitButton);
-  updateQuitButton();
 
   /**
    * Une page web ne peut pas toujours se fermer elle-même, ni sortir du plein
@@ -900,7 +893,6 @@
       $('quit').hidden = false;
     }, 300);
   }
-  $('btnQuit').addEventListener('click', quitApp);
   $('btnQuitSetup').addEventListener('click', quitApp);
   // En fermant la fenêtre d'explication, le jeu reprend (caméra comprise).
   $('quit').querySelector('[data-close]').addEventListener('click', () => {
