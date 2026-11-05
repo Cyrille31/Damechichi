@@ -35,9 +35,11 @@ comme une application (PWA, fonctionne hors ligne).
   repère les lampes et les fenêtres, leur direction et leur taille. Une source
   ponctuelle donne une ombre nette, une source étendue une ombre floue ; chaque
   source donne sa propre ombre, et le reflet des billes se tourne vers la
-  lumière principale. Le gyroscope mémorise la direction des lampes dans la
-  pièce : quand on fait tourner le téléphone, les ombres font un tour complet
-  et régulier, même quand la lampe sort du champ (étroit) de la caméra. Les images sont analysées sur l'appareil, en tout petit,
+  lumière principale. Les capteurs d'orientation (rotation et inclinaisons)
+  font bouger les ombres en phase avec le téléphone, même quand la lampe sort
+  du champ (étroit) de la caméra ; la caméra ne fait que de lentes corrections
+  téléphone immobile, sauf changement net de lumière (lampe allumée ou
+  éteinte), pris en compte en moins d'une seconde. Les images sont analysées sur l'appareil, en tout petit,
   et ne sont ni enregistrées ni envoyées.
 - **Plateau inclinable** : glisser deux doigts vers le haut ou le bas (molette
   de la souris sur PC) pour incliner le plateau en perspective ; les billes

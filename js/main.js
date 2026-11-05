@@ -261,14 +261,11 @@
     requestDraw();
   }
 
-  /** Téléphone à plat : sa rotation fait tourner les ombres, comme dans la pièce. */
+  /** Mouvements du téléphone (rotation, inclinaisons) : les ombres les suivent aussitôt, comme dans la pièce. */
   function onOrientation(e) {
     if (e.alpha === null || e.alpha === undefined) return;
     const screenTurn = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
-    const heading = (e.alpha - screenTurn) * Math.PI / 180;
-    const before = tracker.heading;
-    tracker.heading = heading;
-    if (before === null || Math.abs(Math.atan2(Math.sin(heading - before), Math.cos(heading - before))) > 0.003) requestDraw();
+    if (tracker.setOrientation(e.alpha, e.beta, e.gamma, screenTurn, performance.now())) requestDraw();
   }
 
   /** À chaque image affichée, l'éclairage se rapproche de la cible (constante de temps ≈ 40 ms). */
@@ -309,6 +306,7 @@
       window.removeEventListener('deviceorientation', onOrientation);
       cameraOn = false;
       tracker.tracks = [];
+      tracker.candidates = [];
       if (lightShown !== RoomLight.DEFAULT_LIGHTS) lightTarget = RoomLight.DEFAULT_LIGHTS;
     }
   }
